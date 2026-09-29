@@ -7,3 +7,4 @@ business-profile.json
 data/whatsapp-monitoring.json
 data/dashboard-settings.json
 output/simulations/
+.vercel/
