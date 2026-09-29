@@ -46,28 +46,28 @@ function eventSummary(event) {
 
 router.get('/monitoring/status', requireMonitoringAdmin, async (req, res) => {
     const provider = await whatsapp.getEvolutionStatus();
-    res.json({ success: true, monitoring: monitoringStore.listTargets(), provider });
+    res.json({ success: true, monitoring: await monitoringStore.listTargets(), provider });
 });
 
-router.get('/monitoring/targets', requireMonitoringAdmin, (req, res) => {
-    res.json({ success: true, targets: monitoringStore.listTargets() });
+router.get('/monitoring/targets', requireMonitoringAdmin, async (req, res) => {
+    res.json({ success: true, targets: await monitoringStore.listTargets() });
 });
 
-router.post('/monitoring/targets', requireMonitoringAdmin, (req, res) => {
+router.post('/monitoring/targets', requireMonitoringAdmin, async (req, res) => {
     try {
         const target = getTargetFromRequest(req.body || {});
         if (!target.value) return res.status(400).json({ error: 'Invalid phone number or group ID' });
-        res.status(201).json({ success: true, target: monitoringStore.addTarget(target.value, target.type) });
+        res.status(201).json({ success: true, target: await monitoringStore.addTarget(target.value, target.type) });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
 });
 
-router.delete('/monitoring/targets', requireMonitoringAdmin, (req, res) => {
+router.delete('/monitoring/targets', requireMonitoringAdmin, async (req, res) => {
     try {
         const target = getTargetFromRequest(req.body || {});
         if (!target.value) return res.status(400).json({ error: 'Invalid phone number or group ID' });
-        res.json({ success: true, target: monitoringStore.removeTarget(target.value, target.type) });
+        res.json({ success: true, target: await monitoringStore.removeTarget(target.value, target.type) });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
@@ -124,14 +124,14 @@ router.post('/inbound', async (req, res) => {
             }).catch(error => console.error('Erro no radar de leads (evento em tempo real):', error.message));
         }
 
-        if (!monitoringStore.isAllowed(event.target)) {
+        if (!await monitoringStore.isAllowed(event.target)) {
             return res.json({ success: true, ignored: true, reason: 'not_allowed', event: eventSummary(event) });
         }
-        if (monitoringStore.hasReceipt(event.eventId)) {
+        if (await monitoringStore.hasReceipt(event.eventId)) {
             return res.json({ success: true, ignored: true, reason: 'duplicate', event: eventSummary(event) });
         }
 
-        monitoringStore.recordReceipt(event.eventId);
+        await monitoringStore.recordReceipt(event.eventId);
         const result = await agent.handleInboundMessage({
             phone: event.targetType === 'phone' ? event.target : undefined,
             groupId: event.targetType === 'group' ? event.target : undefined,
@@ -161,7 +161,7 @@ router.post('/monitoring/send', requireMonitoringAdmin, async (req, res) => {
         const target = getTargetFromRequest(req.body || {});
         const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
         if (!target.value || !message) return res.status(400).json({ error: 'Valid target and message are required' });
-        if (!monitoringStore.isAllowed(target.value)) {
+        if (!await monitoringStore.isAllowed(target.value)) {
             return res.status(403).json({ error: 'Target is not allowed for monitoring' });
         }
 

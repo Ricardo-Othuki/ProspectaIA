@@ -1,6 +1,29 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { createClient } = require('@supabase/supabase-js');
+
+const TABLE = 'app_settings';
+const ROW_ID = 'whatsapp_monitoring';
+
+let client = null;
+
+function getClient() {
+    if (client) return client;
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) throw new Error('Supabase não configurado. Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.');
+    client = createClient(url, key, { auth: { persistSession: false } });
+    return client;
+}
+
+function hasSupabaseConfig() {
+    return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
+function shouldUseLocalFallback() {
+    return !process.env.VERCEL && !hasSupabaseConfig();
+}
 
 function normalizePhone(value) {
     const phone = String(value || '').replace(/\D/g, '');
@@ -23,55 +46,95 @@ function normalizeTarget(value, type) {
     return { type: 'phone', value: normalizePhone(value) };
 }
 
+function normalizeData(raw = {}) {
+    return {
+        phones: Array.isArray(raw.phones) ? [...new Set(raw.phones.map(normalizePhone).filter(Boolean))] : [],
+        groups: Array.isArray(raw.groups) ? [...new Set(raw.groups.map(normalizeGroupId).filter(Boolean))] : [],
+        receipts: Array.isArray(raw.receipts)
+            ? raw.receipts
+                .filter(receipt => receipt && receipt.id)
+                .map(receipt => ({ id: String(receipt.id), receivedAt: receipt.receivedAt || new Date().toISOString() }))
+                .slice(-500)
+            : []
+    };
+}
+
 class WhatsAppMonitoringStore {
     constructor(filePath = process.env.WHATSAPP_MONITORING_STORE_PATH || path.join(process.cwd(), 'data', 'whatsapp-monitoring.json')) {
         this.filePath = filePath;
-        this.data = this.load();
+        this.data = normalizeData();
+        this.loaded = false;
     }
 
-    load() {
+    loadLocal() {
         try {
             if (fs.existsSync(this.filePath)) {
-                const parsed = JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
-                return {
-                    phones: Array.isArray(parsed.phones) ? [...new Set(parsed.phones.map(normalizePhone).filter(Boolean))] : [],
-                    groups: Array.isArray(parsed.groups) ? [...new Set(parsed.groups.map(normalizeGroupId).filter(Boolean))] : [],
-                    receipts: Array.isArray(parsed.receipts) ? parsed.receipts.slice(-500) : []
-                };
+                return normalizeData(JSON.parse(fs.readFileSync(this.filePath, 'utf8')));
             }
         } catch (error) {
-            console.error('Falha ao carregar a configuração de monitoramento WhatsApp:', error.message);
+            console.error('Falha ao carregar a configuração local de monitoramento WhatsApp:', error.message);
+        }
+        return normalizeData();
+    }
+
+    async ensureLoaded() {
+        if (this.loaded) return;
+
+        if (shouldUseLocalFallback()) {
+            this.data = this.loadLocal();
+            this.loaded = true;
+            return;
         }
 
-        return { phones: [], groups: [], receipts: [] };
+        const { data, error } = await getClient()
+            .from(TABLE)
+            .select('data')
+            .eq('id', ROW_ID)
+            .maybeSingle();
+
+        if (error) throw new Error(`Falha ao carregar monitoramento WhatsApp no Supabase: ${error.message}`);
+        this.data = normalizeData(data ? data.data : {});
+        this.loaded = true;
     }
 
-    save() {
-        const directory = path.dirname(this.filePath);
-        fs.mkdirSync(directory, { recursive: true });
-        const temporaryPath = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
-        fs.writeFileSync(temporaryPath, `${JSON.stringify(this.data, null, 2)}\n`, { mode: 0o600 });
-        fs.renameSync(temporaryPath, this.filePath);
+    async persist() {
+        if (shouldUseLocalFallback()) {
+            const directory = path.dirname(this.filePath);
+            fs.mkdirSync(directory, { recursive: true });
+            const temporaryPath = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
+            fs.writeFileSync(temporaryPath, `${JSON.stringify(this.data, null, 2)}\n`, { mode: 0o600 });
+            fs.renameSync(temporaryPath, this.filePath);
+            return;
+        }
+
+        const { error } = await getClient()
+            .from(TABLE)
+            .upsert({ id: ROW_ID, data: this.data, updated_at: new Date().toISOString() });
+
+        if (error) throw new Error(`Falha ao salvar monitoramento WhatsApp no Supabase: ${error.message}`);
     }
 
-    listTargets() {
+    async listTargets() {
+        await this.ensureLoaded();
         return { phones: [...this.data.phones], groups: [...this.data.groups] };
     }
 
-    addTarget(value, type) {
+    async addTarget(value, type) {
+        await this.ensureLoaded();
         const target = normalizeTarget(value, type);
         if (!target.value) throw new Error('Contato ou grupo inválido');
 
         const collection = target.type === 'group' ? this.data.groups : this.data.phones;
         if (!collection.includes(target.value)) {
             collection.push(target.value);
-            this.save();
+            await this.persist();
         }
 
         return target;
     }
 
-    removeTarget(value, type) {
+    async removeTarget(value, type) {
+        await this.ensureLoaded();
         const target = normalizeTarget(value, type);
         if (!target.value) throw new Error('Contato ou grupo inválido');
 
@@ -79,12 +142,13 @@ class WhatsAppMonitoringStore {
         const before = this.data[key].length;
         this.data[key] = this.data[key].filter(item => item !== target.value);
         const removed = this.data[key].length !== before;
-        if (removed) this.save();
+        if (removed) await this.persist();
 
         return { ...target, removed };
     }
 
-    isAllowed(value) {
+    async isAllowed(value) {
+        await this.ensureLoaded();
         const target = normalizeTarget(value);
         if (!target.value) return false;
         return target.type === 'group'
@@ -92,15 +156,17 @@ class WhatsAppMonitoringStore {
             : this.data.phones.includes(target.value);
     }
 
-    hasReceipt(eventId) {
+    async hasReceipt(eventId) {
+        await this.ensureLoaded();
         return this.data.receipts.some(receipt => receipt.id === eventId);
     }
 
-    recordReceipt(eventId) {
-        if (!eventId || this.hasReceipt(eventId)) return;
-        this.data.receipts.push({ id: eventId, receivedAt: new Date().toISOString() });
+    async recordReceipt(eventId) {
+        await this.ensureLoaded();
+        if (!eventId || this.data.receipts.some(receipt => receipt.id === eventId)) return;
+        this.data.receipts.push({ id: String(eventId), receivedAt: new Date().toISOString() });
         this.data.receipts = this.data.receipts.slice(-500);
-        this.save();
+        await this.persist();
     }
 }
 
