@@ -114,6 +114,13 @@ class Dashboard {
 
     // ─── Event Listeners ────────────────────────────────────
     setupEventListeners() {
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                try { await api.logout(); } catch (error) { /* cookie may already be gone */ }
+                window.location.href = '/login';
+            });
+        }
         // Sidebar navigation
         document.querySelectorAll('.sidebar .nav-item').forEach(item => {
             item.addEventListener('click', () => {

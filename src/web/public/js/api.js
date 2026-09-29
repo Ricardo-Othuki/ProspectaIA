@@ -45,6 +45,7 @@ class API {
     }
     async getAnalytics() { return this.request('/analytics'); }
     async getHealth() { return this.request('/health'); }
+    async logout() { return this.request('/auth/logout', { method: 'POST' }); }
 
     async createCampaign(data) {
         return this.request('/campaigns', {

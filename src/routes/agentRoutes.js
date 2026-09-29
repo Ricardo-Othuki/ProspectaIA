@@ -96,11 +96,11 @@ router.post('/inbound', async (req, res) => {
         // do número explicitamente autorizado (o alerta vai para um grupo,
         // que pode ter outras pessoas). Só chega aqui de fato depois do
         // deploy público (a Evolution não alcança um servidor local).
-        const { ownerWhatsappNumber } = getAlertSettings();
+        const { ownerWhatsappNumber } = await getAlertSettings();
         const isOwner = Boolean(ownerWhatsappNumber && event.senderPhone && event.senderPhone === String(ownerWhatsappNumber).replace(/\D/g, ''));
 
         if (isOwner && event.quotedMessageId) {
-            const correlation = alertCorrelations.get('whatsapp', event.quotedMessageId);
+            const correlation = await alertCorrelations.get('whatsapp', event.quotedMessageId);
             if (correlation) {
                 remoteOperator.handleReply(correlation, event.message)
                     .catch(error => console.error('Erro ao aplicar resposta via WhatsApp:', error.message));

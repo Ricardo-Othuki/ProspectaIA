@@ -23,6 +23,7 @@ const knowledgeSources = require('../knowledgeSources');
 const telegramPoller = require('../telegramPoller');
 const events = require('../events');
 const eventsStore = require('../eventsStore');
+const { getAuthClient, requireDashboardAuth, setAuthCookies, clearAuthCookies } = require('../auth');
 
 const app = express();
 const PORT = process.env.WEB_PORT || 3000;
@@ -30,7 +31,53 @@ const PORT = process.env.WEB_PORT || 3000;
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.get('/index.html', (req, res) => res.redirect('/'));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+
+// Authentication routes (Supabase Auth + httpOnly cookies)
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        const password = String(req.body?.password || '');
+        if (!email || !password) return res.status(400).json({ error: 'Informe e-mail e senha.' });
+
+        const { data, error } = await getAuthClient().auth.signInWithPassword({ email, password });
+        if (error || !data?.session || !data?.user) {
+            return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
+        }
+
+        setAuthCookies(res, data.session);
+        res.json({ success: true, user: { id: data.user.id, email: data.user.email } });
+    } catch (error) {
+        console.error('Erro no login do painel:', error.message);
+        res.status(500).json({ error: 'Não foi possível autenticar agora.' });
+    }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+    clearAuthCookies(res);
+    res.json({ success: true });
+});
+
+app.use(requireDashboardAuth({
+    publicPaths: [
+        '/login',
+        '/api/auth/login',
+        '/api/auth/logout',
+        '/api/health',
+        '/api/cron/scan',
+        '/api/telegram/webhook',
+        '/api/agent/inbound'
+    ]
+}));
+
+app.get('/api/auth/me', (req, res) => {
+    res.json({ success: true, user: { id: req.user.id, email: req.user.email } });
+});
 
 // Store for active campaigns and SSE connections
 const activeCampaigns = new Map();

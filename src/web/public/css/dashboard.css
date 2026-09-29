@@ -1961,3 +1961,14 @@ textarea::placeholder {
     display: none;
   }
 }
+
+
+.logout-btn {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .logout-btn .btn-text {
+    display: none;
+  }
+}
