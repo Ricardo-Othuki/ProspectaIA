@@ -30,12 +30,15 @@
   --bg-elevated: #232740;
   --bg-hover: #2a2f4a;
   --bg-glass: rgba(26, 29, 46, 0.7);
+  --bg-muted: #151927;
+  --bg-input: #101522;
 
   /* Text */
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #9aa8bd;
   --text-inverse: #0f172a;
+  --text: var(--text-primary);
 
   /* Borders */
   --border: rgba(148, 163, 184, 0.12);
@@ -79,11 +82,14 @@
   --bg-elevated: #f8fafc;
   --bg-hover: #e2e8f0;
   --bg-glass: rgba(255, 255, 255, 0.8);
+  --bg-muted: #eef2f7;
+  --bg-input: #ffffff;
 
   --text-primary: #0f172a;
   --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-muted: #64748b;
   --text-inverse: #f8fafc;
+  --text: var(--text-primary);
 
   --border: rgba(15, 23, 42, 0.08);
   --border-hover: rgba(15, 23, 42, 0.15);
@@ -179,6 +185,25 @@ select,
 textarea {
   font-family: inherit;
   font-size: 0.875rem;
+}
+
+input,
+select,
+textarea {
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border-color: var(--border);
+}
+
+select option {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
 }
 
 /* ─── Scrollbar ──────────────────────────────────────────── */
