@@ -1,0 +1,176 @@
+{
+  "name": "Othuki - Agente de Prospecção WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution-webhook",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "a1",
+      "name": "Webhook Evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 400],
+      "webhookId": "evolution-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.data.key.fromMe }}",
+              "rightValue": false,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "b2",
+      "name": "É do Lead? (fromMe=false)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "phone",
+              "type": "string",
+              "value": "={{ ($json.body.data.key.remoteJid || '').split('@')[0] }}"
+            },
+            {
+              "id": "2",
+              "name": "name",
+              "type": "string",
+              "value": "={{ $json.body.data.pushName || 'Lead' }}"
+            },
+            {
+              "id": "3",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.body.data.message.conversation || ($json.body.data.message.extendedTextMessage && $json.body.data.message.extendedTextMessage.text) || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c3",
+      "name": "Extrair Dados",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.AGENT_URL }}/api/agent/inbound",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "phone", "value": "={{ $json.phone }}" },
+            { "name": "name", "value": "={{ $json.name }}" },
+            { "name": "message", "value": "={{ $json.message }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4",
+      "name": "Chamar Agente Othuki",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [940, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.reply }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "isNotEmpty" }
+            }
+          ]
+        }
+      },
+      "id": "e5",
+      "name": "Tem Resposta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1180, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.EVOLUTION_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "number", "value": "={{ $json.body.leadId }}" },
+            { "name": "text", "value": "={{ $json.body.reply }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f6",
+      "name": "Enviar via Evolution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1420, 400]
+    },
+    {
+      "parameters": {
+        "content": "## Como usar este workflow\n\n1. Importe no n8n do seu VPS.\n2. Defina as variáveis de ambiente (Settings > Environment):\n   - AGENT_URL = http://SEU_HOST:3000  (onde roda este projeto node)\n   - EVOLUTION_URL = https://seu-evolution.com.br  (sem barra no fim)\n   - EVOLUTION_INSTANCE = nome da instância\n   - EVOLUTION_API_KEY = sua apikey\n3. No painel da Evolution API, aponte o webhook da instância para:\n   https://seu-n8n.com/webhook/evolution-webhook\n4. Ative o workflow. Mensagens recebidas caem no agente (que agenda ou escala p/ humano) e a resposta é enviada de volta pelo WhatsApp.\n\nObs: o agente roda em modo simulação por padrão (não envia WhatsApp real nem cria evento real). Troque WHATSAPP_PROVIDER=evolution e configure Google Calendar para produção real."
+      },
+      "id": "g7",
+      "name": "Instruções",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [220, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Evolution": {
+      "main": [ [ { "node": "É do Lead? (fromMe=false)", "type": "main", "index": 0 } ] ]
+    },
+    "É do Lead? (fromMe=false)": {
+      "main": [ [ { "node": "Extrair Dados", "type": "main", "index": 0 } ] ] 
+    },
+    "Extrair Dados": {
+      "main": [ [ { "node": "Chamar Agente Othuki", "type": "main", "index": 0 } ] ]
+    },
+    "Chamar Agente Othuki": {
+      "main": [ [ { "node": "Tem Resposta?", "type": "main", "index": 0 } ] ]
+    },
+    "Tem Resposta?": {
+      "main": [ [ { "node": "Enviar via Evolution", "type": "main", "index": 0 } ] ]
+    }
+  },
+  "pinData": {},
+  "meta": { "templateCredsSetupCompleted": false, "instanceId": "othuki-prospeccao" },
+  "settings": { "executionOrder": "v1" },
+  "version": 1
+}

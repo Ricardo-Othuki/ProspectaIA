@@ -1,0 +1,5 @@
+schema: spec-driven
+skip_specs: true
+
+# This change records the existing brownfield capabilities as baseline specifications.
+# It does not change runtime behavior.

@@ -91,7 +91,7 @@ describe('OpenAI Client Module', () => {
     });
 
     it('should have correct DEFAULT_MODEL', () => {
-        assert.strictEqual(DEFAULT_MODEL, 'gpt-4o-mini');
+        assert.strictEqual(DEFAULT_MODEL, 'gemini-2.5-flash');
     });
 
     it('should return model from env or default', () => {
@@ -101,7 +101,7 @@ describe('OpenAI Client Module', () => {
         assert.strictEqual(getModel(), 'gpt-4o');
         
         delete process.env.OPENAI_MODEL;
-        assert.strictEqual(getModel(), 'gpt-4o-mini');
+        assert.strictEqual(getModel(), 'gemini-2.5-flash');
         
         if (originalModel) process.env.OPENAI_MODEL = originalModel;
         else delete process.env.OPENAI_MODEL;

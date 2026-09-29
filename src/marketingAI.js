@@ -208,6 +208,26 @@ class MarketingAI {
 
     loadRealMarketData() {
         return {
+            brazil: {
+                digitalAdoption: "88% dos brasileiros usam smartphones, 77% compram online",
+                ecommerceGrowth: "Crescimento de 35% ao ano, alcançando $55B em 2024",
+                paymentMethods: "Pix (78%), Cartão de crédito (65%), Boleto (42%), QRIS adoption 89%",
+                socialMedia: "Instagram 130M usuários, WhatsApp Business 50M+ PMEs",
+                marketSize: {
+                    restaurant: "$18.2B mercado F&B, crescimento anual de 12%",
+                    automotive: "$52.8B transporte, compartilhamento de viagem $8.5B",
+                    retail: "$58.3B mercado varejo, adoção omnichannel 67%",
+                    healthcare: "$28.7B saúde, crescimento telemedicina 400%",
+                    education: "$12.4B EdTech, penetração aprendizagem online 78%",
+                    realestate: "$420B mercado imobiliário, adoção PropTech 34%",
+                    professional: "$22.1B serviços profissionais, digitalização 45%"
+                },
+                trends: {
+                    current: "Adoção IA 156%, foco sustentabilidade 89%, preferência marcas locais 72%",
+                    emerging: "Comércio por voz, social commerce, hiper-personalização",
+                    challenges: "Lacunas alfabetização digital, variações infraestrutura, conformidade regulatória"
+                }
+            },
             indonesia: {
                 digitalAdoption: "88% of Indonesians use smartphones, 77% shop online",
                 ecommerceGrowth: "35% YoY growth, reaching $55B in 2024",
@@ -296,6 +316,31 @@ class MarketingAI {
         };
     }
 
+    loadPortugueseContext() {
+        return {
+            businessCulture: {
+                relationship: "Relacionamento pessoal é fundamental nos negócios brasileiros",
+                communication: "Comunicação indireta e cordial é preferida",
+                decision: "Decisões de negócios frequentemente envolvem família ou parceiros",
+                trust: "Construção de confiança é a chave para o sucesso nos negócios",
+                social: "Prova social e depoimentos são muito influentes"
+            },
+            marketTrends: {
+                digital: "88% da população brasileira usa smartphone",
+                ecommerce: "E-commerce cresce 35% ao ano",
+                social: "Instagram e WhatsApp são as plataformas principais",
+                payment: "Pix, cartão de crédito e boleto são métodos de pagamento populares",
+                delivery: "Entrega no mesmo dia já é expectativa"
+            },
+            challenges: {
+                infrastructure: "Velocidade da internet varia entre regiões",
+                education: "Alfabetização digital ainda em desenvolvimento",
+                regulation: "Regulamentações governamentais para negócios digitais",
+                competition: "Empresas estrangeiras e locais competem intensamente"
+            }
+        };
+    }
+
     async generateIndustrySpecificContent(lead, industry, yourService, campaignStyle = 'balanced', language = null) {
         if (!this.openai) {
             throw new Error('OpenAI not configured');
@@ -304,7 +349,7 @@ class MarketingAI {
         // Use profile language if not explicitly passed
         if (!language) {
             const profile = getProfile();
-            language = profile.preferences.language || 'indonesian';
+            language = profile.preferences.language || 'portuguese';
         }
 
         const template = this.industryTemplates[industry];
@@ -338,26 +383,73 @@ class MarketingAI {
         }
     }
 
-    getSystemPrompt(industry, campaignStyle, language = 'indonesian') {
+    getSystemPrompt(industry, campaignStyle, language = 'portuguese') {
         const styleInstructions = {
             conservative: {
+                portuguese: "Simpático, profissional, e constrói confiança gradualmente. Foco em relacionamento de longo prazo.",
                 indonesian: "Sopan, profesional, dan membangun kepercayaan secara bertahap. Fokus pada hubungan jangka panjang.",
                 english: "Respectful, professional, and build trust gradually. Focus on long-term relationship building."
             },
             balanced: {
+                portuguese: "Abordagem de negócios padrão com equilíbrio entre profissionalismo e simpatia.",
                 indonesian: "Pendekatan bisnis standar dengan keseimbangan profesionalisme dan keramahan.",
                 english: "Standard business approach with balanced professionalism and approachability."
             },
             aggressive: {
+                portuguese: "Direto, cria urgência, e foco em ação imediata. Enfatiza vantagens competitivas.",
                 indonesian: "Langsung, ciptakan urgensi, dan fokus pada tindakan segera. Tekankan keunggulan kompetitif.",
                 english: "Direct, create urgency, and focus on immediate action. Emphasize competitive advantages."
             }
         };
 
-        const marketContext = language === 'indonesian' ? this.indonesianContext : this.englishContext;
-        const marketData = this.marketData[language === 'indonesian' ? 'indonesia' : 'global'];
+        let marketContext, marketData;
+        
+        if (language === 'portuguese') {
+            marketContext = this.portugueseContext || this.englishContext;
+            marketData = this.marketData.brazil || this.marketData.global;
+        } else if (language === 'indonesian') {
+            marketContext = this.indonesianContext;
+            marketData = this.marketData.indonesia;
+        } else {
+            marketContext = this.englishContext;
+            marketData = this.marketData.global;
+        }
 
-        if (language === 'indonesian') {
+        if (language === 'portuguese') {
+            return `Você é um especialista em marketing B2B brasileiro especializado no setor de ${industry}.
+
+EXPERTISE NA INDÚSTRIA: Entendimento profundo dos desafios de negócios ${industry} no Brasil
+CONSCIÊNCIA CULTURAL: Estilo de comunicação de negócios brasileiro e nuances culturais
+MERCADO LOCAL: Tendências atuais, desafios e oportunidades no mercado ${industry} brasileiro
+
+ESTILO DE COMUNICAÇÃO: ${styleInstructions[campaignStyle].portuguese}
+
+DADOS REAIS DO MERCADO:
+- Tamanho do mercado ${industry}: ${marketData.marketSize[industry] || marketData.marketSize.professional}
+- Transformação Digital: ${marketData.digitalAdoption || '88% dos brasileiros usam smartphones'}
+- E-commerce: ${marketData.ecommerceGrowth || 'Crescimento de 35% ao ano'}
+- Redes Sociais: ${marketData.socialMedia || 'Instagram e WhatsApp são plataformas principais'}
+
+REQUISITOS:
+1. Escreva em Português do Brasil com termos técnicos quando necessário
+2. Use estilo de comunicação de negócios brasileiro (simpático, focado em relacionamento)
+3. Inclua pontos de dor específicos da indústria e soluções
+4. Referencie o contexto e tendências do mercado local com dados reais
+5. Crie propostas de valor convincentes com estatísticas
+6. Inclua prova social e indicadores de credibilidade
+7. Use dados atuais do mercado para criar urgência
+8. Foque em ROI e resultados mensuráveis
+
+FORMATO DE SAÍDA:
+Gere templates de EMAIL e WHATSAPP com:
+- Linha de assunto convincente com estatísticas
+- Pontos de dor específicos da indústria com dados
+- Soluções personalizadas com benefícios mensuráveis
+- Contexto do mercado local com tendências atuais
+- Chamada para ação clara e urgente
+- Tom profissional mas acessível
+- Prova social e referência de casos de sucesso`;
+        } else if (language === 'indonesian') {
             return `Anda adalah spesialis marketing B2B Indonesia yang ahli di sektor ${industry}.
 
 KEAHLIAN INDUSTRI: Pemahaman mendalam tentang tantangan bisnis ${industry} di Indonesia
@@ -430,22 +522,44 @@ Generate both EMAIL and WHATSAPP templates with:
         }
     }
 
-    buildIndustryPrompt(lead, template, yourService, campaignStyle, language = 'indonesian') {
-        const marketData = this.marketData[language === 'indonesian' ? 'indonesia' : 'global'];
-        const context = language === 'indonesian' ? this.indonesianContext : this.englishContext;
+    buildIndustryPrompt(lead, template, yourService, campaignStyle, language = 'portuguese') {
+        let marketData, context;
+        
+        if (language === 'portuguese') {
+            marketData = this.marketData.brazil || this.marketData.global;
+            context = this.portugueseContext || this.englishContext;
+        } else if (language === 'indonesian') {
+            marketData = this.marketData.indonesia;
+            context = this.indonesianContext;
+        } else {
+            marketData = this.marketData.global;
+            context = this.englishContext;
+        }
+        
         const biz = getBusinessInfoForPrompt();
         
         // Build "your business" section dynamically from profile
-        const bizInfoSection = language === 'indonesian'
-            ? `INFORMASI BISNIS ANDA:
+        let bizInfoSection;
+        if (language === 'portuguese') {
+            bizInfoSection = `INFORMAÇÕES DO SEU NEGÓCIO:
+- Nome do Negócio: ${biz.name}
+- Tipo de Negócio: ${biz.type}
+- Descrição: ${biz.description}
+- Telefone: ${biz.phone}
+- Email: ${biz.email}
+- Website: ${biz.website}
+${biz.valuePropositions.length > 0 ? `- Propostas de Valor: ${biz.valuePropositions.join(', ')}` : ''}`;
+        } else if (language === 'indonesian') {
+            bizInfoSection = `INFORMASI BISNIS ANDA:
 - Nama Bisnis: ${biz.name}
 - Tipe Bisnis: ${biz.type}
 - Deskripsi: ${biz.description}
 - Telepon: ${biz.phone}
 - Email: ${biz.email}
 - Website: ${biz.website}
-${biz.valuePropositions.length > 0 ? `- Value Propositions: ${biz.valuePropositions.join(', ')}` : ''}`
-            : `YOUR BUSINESS INFO:
+${biz.valuePropositions.length > 0 ? `- Value Propositions: ${biz.valuePropositions.join(', ')}` : ''}`;
+        } else {
+            bizInfoSection = `YOUR BUSINESS INFO:
 - Business Name: ${biz.name}
 - Business Type: ${biz.type}
 - Description: ${biz.description}
@@ -453,8 +567,49 @@ ${biz.valuePropositions.length > 0 ? `- Value Propositions: ${biz.valuePropositi
 - Email: ${biz.email}
 - Website: ${biz.website}
 ${biz.valuePropositions.length > 0 ? `- Value Propositions: ${biz.valuePropositions.join(', ')}` : ''}`;
+        }
 
-        if (language === 'indonesian') {
+        if (language === 'portuguese') {
+            return `Crie conteúdo de marketing personalizado para este negócio de ${template.localContext}:
+
+DETALHES DO NEGÓCIO ALVO:
+- Nome: ${lead.name}
+- Endereço: ${lead.address}
+- Telefone: ${lead.phone}
+- Avaliação: ${lead.rating || 'N/A'}
+- Website: ${lead.website || 'Sem website'}
+
+SERVIÇO OFERECIDO: ${yourService || biz.description}
+
+${bizInfoSection}
+
+CONTEXTO DA INDÚSTRIA:
+Pontos de Dor: ${template.painPoints.join(', ')}
+Soluções: ${template.solutions.join(', ')}
+Benefícios: ${template.benefits.join(', ')}
+Contexto Local: ${template.localContext}
+Urgência do Mercado: ${template.urgency}
+
+DADOS REAIS DO MERCADO:
+- Tamanho do Mercado: ${marketData.marketSize[template.industry] || marketData.marketSize.professional}
+- Tendências Atuais: ${marketData.trends.current}
+- Desafios: ${marketData.trends.challenges}
+
+CULTURA DE NEGÓCIOS BRASILEIRA:
+- Comunicação focada em relacionamento
+- Confiança e credibilidade são fundamentais
+- Prova social é muito influente
+- WhatsApp é a principal comunicação de negócios
+- Entender o mercado local é crucial
+
+ESTILO DA CAMPANHA: ${campaignStyle}
+
+Por favor, gere:
+1. TEMPLATE DE EMAIL com linha de assunto convincente e estatísticas
+2. TEMPLATE DE WHATSAPP para follow-up casual
+
+Faça específico para o negócio deles, inclua contexto brasileiro com dados reais, e crie urgência baseada nas tendências atuais do mercado. Use estatísticas e dados para aumentar a credibilidade.`;
+        } else if (language === 'indonesian') {
             return `Buat konten marketing yang dipersonalisasi untuk bisnis ${template.localContext} ini:
 
 DETAIL BISNIS TARGET:
@@ -723,8 +878,17 @@ Make it specific to their business, include relevant market data, and create urg
         };
     }
 
-    getMarketSize(industry, language = 'indonesian') {
+    getMarketSize(industry, language = 'portuguese') {
         const marketData = {
+            portuguese: {
+                restaurant: "$18.2B indústria de F&B no Brasil com crescimento de 12% ao ano",
+                automotive: "$52.8B setor de transporte, compartilhamento de viagem $8.5B",
+                retail: "$58.3B mercado de varejo, penetração e-commerce 19.6%",
+                professional: "$22.1B serviços profissionais, digitalização 45%",
+                healthcare: "$28.7B mercado de saúde, telemedicina cresceu 400%",
+                education: "$12.4B EdTech, penetração de aprendizagem online 78%",
+                realestate: "$420B mercado imobiliário, adoção PropTech 34%"
+            },
             indonesian: {
                 restaurant: "$18.2B industri F&B Indonesia dengan pertumbuhan 12% annually",
                 automotive: "$52.8B sektor transportasi, ride-sharing $8.5B",
@@ -745,8 +909,10 @@ Make it specific to their business, include relevant market data, and create urg
             }
         };
 
-        const langData = marketData[language] || marketData.indonesian;
-        return langData[industry] || (language === 'indonesian' ?
+        const langData = marketData[language] || marketData.portuguese;
+        return langData[industry] || (language === 'portuguese' ?
+            "Oportunidade de mercado em crescimento no Brasil" :
+            language === 'indonesian' ?
             "Peluang pasar Indonesia yang berkembang" :
             "Growing market opportunity");
     }
@@ -754,14 +920,33 @@ Make it specific to their business, include relevant market data, and create urg
     // New method to get available languages
     getAvailableLanguages() {
         return [
-            { code: 'indonesian', name: 'Bahasa Indonesia', flag: '🇮🇩' },
-            { code: 'english', name: 'English', flag: '🇺🇸' }
+            { code: 'portuguese', name: 'Português', flag: '🇧🇷' },
+            { code: 'english', name: 'English', flag: '🇺🇸' },
+            { code: 'indonesian', name: 'Bahasa Indonesia', flag: '🇮🇩' }
         ];
     }
 
     // New method to get campaign styles with descriptions
-    getCampaignStyles(language = 'indonesian') {
-        if (language === 'indonesian') {
+    getCampaignStyles(language = 'portuguese') {
+        if (language === 'portuguese') {
+            return [
+                {
+                    code: 'conservative',
+                    name: 'Conservador',
+                    description: 'Sopan, profissional, constrói confiança gradualmente'
+                },
+                {
+                    code: 'balanced',
+                    name: 'Equilibrado',
+                    description: 'Abordagem padrão com equilíbrio entre profissionalismo e simpaticidade'
+                },
+                {
+                    code: 'aggressive',
+                    name: 'Agressivo',
+                    description: 'Direto, cria urgência, foco em ação imediata'
+                }
+            ];
+        } else if (language === 'indonesian') {
             return [
                 {
                     code: 'conservative',
@@ -801,10 +986,19 @@ Make it specific to their business, include relevant market data, and create urg
     }
 
     // Enhanced method to get industry list with descriptions
-    getAvailableIndustries(language = 'indonesian') {
+    getAvailableIndustries(language = 'portuguese') {
         const industries = Object.keys(this.industryTemplates);
         
         const descriptions = {
+            portuguese: {
+                restaurant: 'Restaurante & Gastronomia',
+                automotive: 'Automotivo & Transporte',
+                retail: 'Varejo & E-commerce',
+                professional: 'Serviços Profissionais',
+                healthcare: 'Saúde & Clínicas',
+                education: 'Educação & Cursos',
+                realestate: 'Imobiliário & Real Estate'
+            },
             indonesian: {
                 restaurant: 'Restoran & F&B',
                 automotive: 'Otomotif & Transportasi',
@@ -825,7 +1019,7 @@ Make it specific to their business, include relevant market data, and create urg
             }
         };
 
-        const langDesc = descriptions[language] || descriptions.indonesian;
+        const langDesc = descriptions[language] || descriptions.portuguese;
         
         return industries.map(industry => ({
             code: industry,

@@ -12,11 +12,11 @@ class API {
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}/api${endpoint}`;
         const config = {
+            ...options,
             headers: {
                 'Content-Type': 'application/json',
                 ...options.headers
-            },
-            ...options
+            }
         };
 
         try {
@@ -53,7 +53,76 @@ class API {
         });
     }
 
-    // ─── Utility Functions ──────────────────────────────────
+    // ─── Agent / Conversations ──────────────────────────────
+    async getSettings() { return this.request('/settings'); }
+    async saveSettings(settings) { return this.request('/settings', { method: 'PUT', body: JSON.stringify({ settings }) }); }
+    async saveProfile(profile) { return this.request('/settings/profile', { method: 'PUT', body: JSON.stringify({ profile }) }); }
+    async saveKnowledgeExtra(text) { return this.request('/settings/knowledge', { method: 'PUT', body: JSON.stringify({ text }) }); }
+    async getSimulationScenarios() { return this.request('/simulations/scenarios'); }
+    async runSimulation(scenario = 'padrao') { return this.request('/simulations/run', { method: 'POST', body: JSON.stringify({ scenario }) }); }
+    async getMonitoringStatus(token) { return this.request('/agent/monitoring/status', { headers: { 'x-whatsapp-monitoring-token': token } }); }
+    async addMonitoringTarget(token, target) { return this.request('/agent/monitoring/targets', { method: 'POST', headers: { 'x-whatsapp-monitoring-token': token }, body: JSON.stringify(target) }); }
+    async removeMonitoringTarget(token, target) { return this.request('/agent/monitoring/targets', { method: 'DELETE', headers: { 'x-whatsapp-monitoring-token': token }, body: JSON.stringify(target) }); }
+    async registerMonitoringWebhook(token, url) { return this.request('/agent/monitoring/webhook/register', { method: 'POST', headers: { 'x-whatsapp-monitoring-token': token }, body: JSON.stringify({ url }) }); }
+    async getConversations() {
+        const result = await this.request('/agent/conversations');
+        return result.conversations || [];
+    }
+    async getConversation(id) {
+        const result = await this.request(`/agent/conversations/${id}`);
+        return result.conversation;
+    }
+    async takeoverConversation(id) {
+        return this.request('/agent/takeover', {
+            method: 'POST',
+            body: JSON.stringify({ leadId: id })
+        });
+    }
+    async releaseConversation(id) {
+        return this.request('/agent/release', {
+            method: 'POST',
+            body: JSON.stringify({ leadId: id })
+        });
+    }
+    async sendManualMessage(id, message, senderName) {
+        return this.request('/agent/manual-message', {
+            method: 'POST',
+            body: JSON.stringify({ leadId: id, message, senderName })
+        });
+    }
+    async approveMessage(id, payload = {}) {
+        return this.request(`/agent/messages/${id}/approve`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    }
+    async discardMessage(id) {
+        return this.request(`/agent/messages/${id}/discard`, { method: 'POST' });
+    }
+
+    // ─── Lead Radar ──────────────────────────────────────────
+    async getRadarGroups() { return this.request('/lead-radar/groups'); }
+    async excludeRadarGroup(groupId) { return this.request(`/lead-radar/groups/${encodeURIComponent(groupId)}/exclude`, { method: 'POST' }); }
+    async includeRadarGroup(groupId) { return this.request(`/lead-radar/groups/${encodeURIComponent(groupId)}/exclude`, { method: 'DELETE' }); }
+    async scanRadar(sinceDays = 7) { return this.request('/lead-radar/scan', { method: 'POST', body: JSON.stringify({ sinceDays }) }); }
+    async getRadarLeads(filters = {}) {
+        const params = new URLSearchParams();
+        if (filters.since) params.set('since', filters.since);
+        if (filters.priority) params.set('priority', filters.priority);
+        if (filters.groupId) params.set('groupId', filters.groupId);
+        if (filters.status) params.set('status', filters.status);
+        const qs = params.toString();
+        return this.request(`/lead-radar/leads${qs ? `?${qs}` : ''}`);
+    }
+    async setRadarLeadStatus(id, status) {
+        return this.request(`/lead-radar/leads/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) });
+    }
+    async contactRadarLead(id) {
+        return this.request(`/lead-radar/leads/${id}/contact`, { method: 'POST', body: JSON.stringify({}) });
+    }
+    async setRadarAutoScan(enabled) {
+        return this.request('/lead-radar/auto-scan', { method: 'POST', body: JSON.stringify({ enabled }) });
+    }
     formatNumber(num) {
         if (num === null || num === undefined) return '0';
         const n = Number(num);
@@ -81,8 +150,10 @@ class API {
     }
 
     safeString(value, fallback = '-') {
-        if (value === null || value === undefined || value === '') return fallback;
-        return String(value);
+        const text = value === null || value === undefined || value === '' ? fallback : String(value);
+        return text.replace(/[&<>'"]/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+        }[character]));
     }
 
     parseNumericValue(value) {

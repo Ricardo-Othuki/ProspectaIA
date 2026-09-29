@@ -4,3 +4,6 @@ node_modules
 output/*
 user-preferences.json
 business-profile.json
+data/whatsapp-monitoring.json
+data/dashboard-settings.json
+output/simulations/

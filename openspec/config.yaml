@@ -1,0 +1,37 @@
+schema: spec-driven
+
+context: |
+  Product: Node.js lead-generation and AI sales-assistance application for Othuki Agência Digital.
+  Runtime: Node.js with CommonJS modules, Express dashboard/API, SQLite, Puppeteer, Axios, OpenAI-compatible Gemini client, Evolution API, and Google Calendar/Meet.
+  Main areas: Google Maps lead scraping, lead intelligence and scoring, AI marketing content, campaign execution, WhatsApp outreach and inbound agent conversations, calendar scheduling, and web dashboard.
+  Configuration: environment variables are loaded from .env; secrets must never be copied into specs, proposals, logs, or source control.
+  Existing conventions: preserve CommonJS style, Portuguese user-facing behavior where applicable, small focused modules, and scripts already defined in package.json.
+  Verification: use the repository's npm scripts and targeted Node.js test scripts; never assume a test framework that is not declared in package.json.
+  Brownfield rule: baseline specifications document behavior that already exists; change specs document only proposed deltas.
+
+rules:
+  proposal:
+    - Keep the proposal focused on one coherent change.
+    - Include explicit non-goals when a change touches WhatsApp, AI, credentials, or outbound communication.
+    - Do not include secret values or personal contact data.
+  specs:
+    - Use observable behavior and testable scenarios.
+    - Document authorization, safety, and failure behavior for external integrations.
+    - Keep requirements implementation-agnostic unless an existing API contract must be preserved.
+  design:
+    - Identify affected modules, APIs, persistence, external services, and migration or rollback concerns.
+    - Preserve existing public scripts and API compatibility unless the proposal marks a breaking change.
+  tasks:
+    - Break work into independently verifiable implementation steps.
+    - Include validation commands for each externally observable behavior.
+
+operations:
+  apply:
+    guidance:
+      - Inspect existing code and the applicable spec before editing.
+      - Never expose or commit .env values, API keys, tokens, or personal WhatsApp data.
+      - Run relevant tests plus lint/typecheck commands when they exist; report unavailable checks explicitly.
+  archive:
+    guidance:
+      - Archive only after all tasks are verified.
+      - Sync the final capability requirements into main specs.

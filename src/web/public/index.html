@@ -64,8 +64,30 @@
             <h1>Business Leads AI</h1>
             <span class="version">v2.0</span>
           </div>
+          <div class="system-status" title="Sistema ativo — radar de leads e agente rodando">
+            <span class="radar-pulse" aria-hidden="true">
+              <span class="radar-pulse-sweep"></span>
+              <span class="radar-pulse-dot"></span>
+            </span>
+            <span class="system-status-label">Sistema ativo</span>
+          </div>
         </div>
         <div class="header-actions">
+          <div class="alert-bell-wrap">
+            <button class="alert-bell" id="alertBellBtn" aria-label="Notificações" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              <span class="alert-bell-badge" id="alertBellBadge" style="display:none">0</span>
+            </button>
+            <div class="alert-bell-dropdown" id="alertBellDropdown">
+              <div class="alert-bell-dropdown-header">
+                <strong>Notificações</strong>
+                <button type="button" id="alertBellClear" class="alert-bell-clear">Limpar</button>
+              </div>
+              <div class="alert-bell-list" id="alertBellList">
+                <p class="empty-message">Nenhuma notificação ainda.</p>
+              </div>
+            </div>
+          </div>
           <button
             class="theme-toggle"
             id="themeToggle"
@@ -188,22 +210,45 @@
             </svg>
             <span class="nav-label">Leads</span>
           </li>
-          <li class="nav-item" data-section="analytics">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M3 3v18h18" />
-              <path d="m19 9-5 5-4-4-3 3" />
-            </svg>
-            <span class="nav-label">Analytics</span>
-          </li>
-        </ul>
-      </nav>
+           <li class="nav-item" data-section="analytics">
+             <svg
+               viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="2"
+               stroke-linecap="round"
+               stroke-linejoin="round"
+             >
+               <path d="M3 3v18h18" />
+               <path d="m19 9-5 5-4-4-3 3" />
+             </svg>
+             <span class="nav-label">Analytics</span>
+           </li>
+           <li class="nav-item" data-section="conversations">
+             <svg
+               viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="2"
+               stroke-linecap="round"
+               stroke-linejoin="round"
+             >
+               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+             </svg>
+             <span class="nav-label">Conversas</span>
+             <span class="nav-badge" id="conversationCount">0</span>
+            </li>
+            <li class="nav-item" data-section="lead-radar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 6a6 6 0 0 1 6 6"/></svg>
+              <span class="nav-label">Radar de Leads</span>
+              <span class="nav-badge" id="radarLeadCount">0</span>
+            </li>
+            <li class="nav-item" data-section="settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.56v.08h-3v-.08A1.7 1.7 0 0 0 10.66 18.7a1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7 15.04a1.7 1.7 0 0 0-1.56-1.04h-.08v-3h.08A1.7 1.7 0 0 0 7 9.96a1.7 1.7 0 0 0-.34-1.88L6.6 8.02 8.72 5.9l.06.06a1.7 1.7 0 0 0 1.88.34h.01a1.7 1.7 0 0 0 1.03-1.56v-.08h3v.08a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06A1.7 1.7 0 0 0 19.4 10v.01a1.7 1.7 0 0 0 1.56 1.03h.08v3h-.08A1.7 1.7 0 0 0 19.4 15z"/></svg>
+              <span class="nav-label">Configurações</span>
+            </li>
+          </ul>
+       </nav>
 
       <!-- Content Area -->
       <main class="content">
@@ -253,6 +298,39 @@
               <div class="skeleton skeleton-row"></div>
               <div class="skeleton skeleton-row"></div>
             </div>
+          </div>
+
+          <div class="bot-commands-card">
+            <h3>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                <path d="M12 2a10 10 0 1 0 10 10" /><path d="M12 2v4" /><path d="m16.2 7.8 2.9-2.9" />
+              </svg>
+              Comandos do bot (WhatsApp / Telegram)
+            </h3>
+            <p class="section-subtitle">Aprove rascunhos e opere o sistema direto do WhatsApp ou Telegram, sem abrir o painel. Configure os canais em Radar de Leads → Grupos monitorados e alertas.</p>
+            <div class="bot-commands-grid">
+              <div class="bot-command-item">
+                <code>/pendentes</code>
+                <span>Lista as conversas com rascunho aguardando aprovação</span>
+              </div>
+              <div class="bot-command-item">
+                <code>/rascunho &lt;leadId&gt;</code>
+                <span>Mostra o texto do rascunho de um lead específico</span>
+              </div>
+              <div class="bot-command-item">
+                <code>/scan</code>
+                <span>Dispara uma varredura do Radar de Leads (últimos 7 dias)</span>
+              </div>
+              <div class="bot-command-item">
+                <code>/status</code>
+                <span>Resumo rápido: pendências e leads do radar por prioridade</span>
+              </div>
+            </div>
+            <div class="bot-commands-reply-hint">
+              <strong>Responder (reply) a uma notificação de rascunho:</strong>
+              <span>"aprovar"/"sim" envia como está · "cancelar"/"não" descarta · qualquer outro texto envia esse texto no lugar</span>
+            </div>
+            <p class="settings-help">No WhatsApp, comandos só funcionam a partir do número autorizado nas configurações do Radar (o canal é um grupo compartilhado). No Telegram, o chat com o bot já é privado.</p>
           </div>
         </div>
 
@@ -443,6 +521,234 @@
             </div>
           </div>
         </div>
+        <!-- Conversations Section -->
+        <div class="section" id="section-conversations">
+          <div class="conversations-header">
+            <h2 class="section-title">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Conversas
+            </h2>
+            <button
+              class="btn btn-secondary btn-sm"
+              onclick="dashboard.refreshConversations()"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                width="14"
+                height="14"
+              >
+                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+              </svg>
+              Atualizar
+            </button>
+          </div>
+          <div class="conversations-layout">
+            <div class="conversations-list" id="conversationsList">
+              <div class="skeleton skeleton-card" style="height: 120px"></div>
+            </div>
+            <div class="conversation-detail" id="conversationDetail">
+              <div class="card" style="text-align: center; padding: 3rem">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  width="48"
+                  height="48"
+                  style="opacity: 0.3; margin-bottom: 1rem"
+                >
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                <p class="empty-title">Nenhuma conversa selecionada</p>
+                <p class="empty-message">
+                  Escolha uma conversa à esquerda para ver o histórico e
+                  assumir o atendimento quando necessário.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lead Radar Section -->
+        <div class="section" id="section-lead-radar">
+          <div class="conversations-header">
+            <h2 class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 6a6 6 0 0 1 6 6"/></svg>
+              Radar de Leads em Grupos
+            </h2>
+            <div class="radar-header-actions">
+              <span id="radarLastScan" class="radar-last-scan"></span>
+              <button class="btn btn-secondary btn-sm" id="radarAutoScanToggle" onclick="dashboard.toggleAutoScan()">⏳ Verificando...</button>
+              <button class="btn btn-primary btn-sm" id="radarScanButton" onclick="dashboard.scanRadarNow()">🔎 Escanear agora</button>
+            </div>
+          </div>
+          <p class="section-subtitle">Mensagens dos seus grupos de WhatsApp que parecem pedidos reais de serviços da Othuki, priorizadas por relevância.</p>
+
+          <div class="radar-filters">
+            <label>Período
+              <select id="radarFilterPeriod">
+                <option value="1">Últimas 24h</option>
+                <option value="3">Últimos 3 dias</option>
+                <option value="7" selected>Últimos 7 dias</option>
+              </select>
+            </label>
+            <label>Prioridade
+              <select id="radarFilterPriority">
+                <option value="">Todas</option>
+                <option value="alta">Alta</option>
+                <option value="media">Média</option>
+                <option value="baixa">Baixa</option>
+              </select>
+            </label>
+            <label>Grupo
+              <select id="radarFilterGroup"><option value="">Todos os grupos</option></select>
+            </label>
+            <label>Status
+              <select id="radarFilterStatus">
+                <option value="">Todos</option>
+                <option value="novo">Novo</option>
+                <option value="contatado">Contatado</option>
+                <option value="dispensado">Dispensado</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="radarLeadsList" class="radar-leads-list">
+            <div class="skeleton skeleton-card" style="height: 100px"></div>
+          </div>
+
+          <details class="radar-groups-settings">
+            <summary>⚙️ Grupos monitorados e alertas</summary>
+            <div id="radarChannelsStatus" class="radar-channels-status"></div>
+            <form id="radarAlertsForm" class="radar-alerts-form">
+              <label>ID do grupo do WhatsApp para alertas<input id="radarAlertWhatsappGroup" placeholder="120363xxxxxxxxx@g.us" /></label>
+              <label>Chat ID do Telegram<input id="radarAlertTelegramChat" placeholder="ex: 6589643281" /></label>
+              <label>Seu número de WhatsApp (autoriza comandos)<input id="radarAlertOwnerNumber" placeholder="ex: 5511999999999" /></label>
+              <button class="btn btn-primary btn-sm" type="submit">Salvar canais de alerta</button>
+              <p class="settings-help">O token do bot do Telegram continua só no .env (é um segredo). Aqui você define só para onde mandar: o grupo do WhatsApp, o chat do Telegram, e qual número de WhatsApp pode aprovar/comandar pelo grupo (sem isso, comandos por WhatsApp ficam desativados por segurança).</p>
+            </form>
+            <div id="radarGroupsList" class="radar-groups-list"></div>
+          </details>
+        </div>
+
+        <div class="section" id="section-settings">
+          <h2 class="section-title">Configurações</h2>
+          <p class="section-subtitle">Configurações não secretas. Chaves, tokens e credenciais continuam somente no arquivo .env.</p>
+          <div id="settingsFeedback" class="settings-feedback" aria-live="polite"></div>
+
+          <div class="settings-layout">
+            <nav class="settings-subnav" aria-label="Categorias de configuração">
+              <button type="button" class="settings-subnav-item active" data-settings-tab="geral">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                Geral
+              </button>
+              <button type="button" class="settings-subnav-item" data-settings-tab="conhecimento">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                Base de conhecimento
+              </button>
+              <button type="button" class="settings-subnav-item" data-settings-tab="integracoes">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                Integrações
+              </button>
+              <button type="button" class="settings-subnav-item" data-settings-tab="monitoramento">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Monitoramento WhatsApp
+              </button>
+              <button type="button" class="settings-subnav-item" data-settings-tab="simulacao">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Simulação
+              </button>
+            </nav>
+
+            <div class="settings-panels">
+              <div class="settings-tab-panel active" data-settings-panel="geral">
+                <form class="card settings-card" id="profileSettingsForm">
+                  <h3>Perfil do negócio</h3>
+                  <p class="settings-card-desc">Como sua empresa se apresenta — usado pelo agente de IA para falar com propriedade sobre o que vocês fazem.</p>
+                  <label>Nome<input id="profileName" maxlength="120" /></label>
+                  <label>Tipo de negócio<input id="profileType" maxlength="120" /></label>
+                  <label>Telefone<input id="profilePhone" maxlength="30" /></label>
+                  <label>E-mail<input id="profileEmail" type="email" maxlength="160" /></label>
+                  <label>Website<input id="profileWebsite" type="url" maxlength="240" /></label>
+                  <label>Descrição<textarea id="profileDescription" maxlength="2000"></textarea></label>
+                  <button class="btn btn-primary" type="submit">Salvar perfil</button>
+                </form>
+                <form class="card settings-card" id="campaignSettingsForm">
+                  <h3>Campanhas e IA</h3>
+                  <p class="settings-card-desc">Padrões usados ao criar novas campanhas de prospecção.</p>
+                  <label>Setor<input id="settingIndustry" maxlength="120" /></label>
+                  <label>Estilo<select id="settingStyle"><option value="balanced">Equilibrado</option><option value="professional">Profissional</option><option value="casual">Casual</option><option value="aggressive">Agressivo</option></select></label>
+                  <label>Idioma<select id="settingLanguage"><option value="portuguese">Português</option><option value="english">Inglês</option><option value="indonesian">Indonésio</option></select></label>
+                  <label>Formato<select id="settingFormat"><option value="csv">CSV</option><option value="json">JSON</option><option value="vcard">vCard</option></select></label>
+                  <label>Limite de resultados<input id="settingResultLimit" type="number" min="1" max="1000" /></label>
+                  <label>Score mínimo<input id="settingMinScore" type="number" min="0" max="100" /></label>
+                  <label>Modelo IA<input id="settingModel" maxlength="120" placeholder="Mantém o modelo do .env se vazio" /></label>
+                  <label>Máximo de conteúdos<input id="settingMaxContent" type="number" min="1" max="1000" /></label>
+                  <label class="checkbox-label"><input id="settingMultiTouch" type="checkbox" /> Gerar sequência multi-contato</label>
+                  <button class="btn btn-primary" type="submit">Salvar configurações</button>
+                </form>
+              </div>
+
+              <div class="settings-tab-panel" data-settings-panel="conhecimento">
+                <form class="card settings-card settings-card-wide" id="knowledgeSettingsForm">
+                  <h3>Base de conhecimento extra</h3>
+                  <p class="settings-card-desc">Cole aqui conteúdo do site (othuki.com.br) ou de outros links relevantes — entra automaticamente no contexto do agente de vendas.</p>
+                  <label>Texto<textarea id="knowledgeExtraText" maxlength="8000" rows="10" placeholder="Cole aqui o conteúdo relevante..."></textarea></label>
+                  <button class="btn btn-primary" type="submit">Salvar base de conhecimento</button>
+                </form>
+              </div>
+
+              <div class="settings-tab-panel" data-settings-panel="integracoes">
+                <div class="card settings-card settings-card-wide">
+                  <h3>Integrações</h3>
+                  <p class="settings-card-desc">Status das chaves e serviços conectados.</p>
+                  <div id="settingsReadiness">Carregando status…</div>
+                  <p class="settings-help">Altere chaves da IA, Evolution API e Google Calendar no .env e reinicie o servidor.</p>
+                </div>
+              </div>
+
+              <div class="settings-tab-panel" data-settings-panel="monitoramento">
+                <div class="card settings-card settings-card-wide">
+                  <h3>Monitoramento WhatsApp</h3>
+                  <p class="settings-card-desc">Allowlist de contatos/grupos e webhook usados pelo fluxo de vendas assistido.</p>
+                  <label>Token administrativo<input id="monitoringToken" type="password" autocomplete="off" placeholder="Não é salvo no navegador" /></label>
+                  <button class="btn btn-secondary" id="loadMonitoringButton" type="button">Carregar monitoramento</button>
+                  <div id="monitoringStatus"></div>
+                  <form id="monitoringTargetForm"><label>Contato ou ID do grupo<input id="monitoringTarget" placeholder="5511999999999 ou ...@g.us" /></label><button class="btn btn-primary" type="submit">Adicionar permitido</button></form>
+                  <div id="monitoringTargets"></div>
+                  <form id="webhookForm"><label>URL do webhook<input id="webhookUrl" type="url" placeholder="https://host/api/agent/inbound" /></label><button class="btn btn-secondary" type="submit">Registrar webhook</button></form>
+                </div>
+              </div>
+
+              <div class="settings-tab-panel" data-settings-panel="simulacao">
+                <div class="card settings-card settings-card-wide">
+                  <h3>Simulação do fluxo</h3>
+                  <p class="settings-card-desc">Executa dados fictícios localmente. Não usa secrets, não chama provedores e não envia mensagens.</p>
+                  <label>Cenário<select id="simulationScenario"><option value="padrao">Fluxo completo de prospecção e monitoramento</option></select></label>
+                  <button class="btn btn-secondary" id="runSimulationButton" type="button">Executar simulação segura</button>
+                  <div id="simulationReport" class="simulation-report"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
 
@@ -512,6 +818,23 @@
             <path d="m19 9-5 5-4-4-3 3" />
           </svg>
           Analytics
+        </li>
+        <li class="bottom-nav-item" data-section="conversations">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          Conversas
+        </li>
+        <li class="bottom-nav-item" data-section="lead-radar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 6a6 6 0 0 1 6 6"/></svg>
+          Radar
         </li>
       </ul>
     </nav>

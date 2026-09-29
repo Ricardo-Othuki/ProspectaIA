@@ -73,6 +73,24 @@ class BusinessScraper {
       // Extract business data directly from the list without clicking
       const businesses = await page.evaluate(() => {
         const results = [];
+        const clean = (s) => (s || '').replace(/^[·•·]\s*/, '').trim();
+
+        // Extract the address line from a .UaQhfb block (language-agnostic)
+        const extractAddress = (ub) => {
+          if (!ub) return '';
+          const blocks = Array.from(ub.querySelectorAll('.W4Efsd'));
+          for (const block of blocks) {
+            const raw = block.textContent.replace(/[-★☆]/g, '').replace(/\s+/g, ' ').trim();
+            const isHours = /(aberto|fechado|open|closed|horário|hours|segunda|terça|quarta|quinta|sexta|sábado|domingo|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i.test(raw);
+            if (isHours) continue;
+            if (/\d/.test(raw) && /(rua|av|avenida|alameda|travessa|rod|road|street|jalan|jl\.|calle|r\.|nº|no\.|number|\d{5}-\d{3})/i.test(raw)) {
+              const segs = raw.split('·').map((s) => s.trim()).filter(Boolean);
+              const addrSeg = segs.find((s) => /(rua|av|avenida|alameda|travessa|rod|road|street|jalan|jl\.|calle|r\.|nº|no\.|number|\d{5}-\d{3})/i.test(s));
+              return addrSeg || segs[segs.length - 1] || raw;
+            }
+          }
+          return '';
+        };
         
         // Method 1: Look for business cards using TFQHme separators
         const separators = document.querySelectorAll('.TFQHme');
@@ -86,28 +104,26 @@ class BusinessScraper {
             const businessCard = nextDiv.querySelector('.Nv2PK');
             if (businessCard) {
               // Extract business name
-              const nameElement = businessCard.querySelector('.qBF1Pd.fontHeadlineSmall');
-              const name = nameElement ? nameElement.textContent.trim() : '';
+              const nameElement = businessCard.querySelector('.qBF1Pd.fontHeadlineSmall') || businessCard.querySelector('a.hfpxzc');
+              const name = nameElement ? (nameElement.getAttribute('aria-label') || nameElement.textContent).trim() : '';
               
-              // Extract address - look for span with address pattern
-              let address = '';
-              const allSpans = businessCard.querySelectorAll('span');
-              for (const span of allSpans) {
-                const text = span.textContent.trim();
-                if (text.includes('Jl.') || text.includes('Street') || text.includes('Road') || text.includes('No.')) {
-                  // Remove "· " prefix if present
-                  address = text.replace(/^[·•]\s*/, '');
-                  break;
-                }
-              }
-              
-              // Extract phone - look for span with phone pattern
+              // Extract address (robust, language-agnostic)
+              const address = extractAddress(businessCard.querySelector('.UaQhfb'));
+
+              // Extract phone (prefer tel: links, else a phone-shaped span)
               let phone = '';
-              for (const span of allSpans) {
-                const text = span.textContent.trim();
-                if (text.match(/\d{3,}/) && (text.includes('+62') || text.includes('08') || text.includes('-'))) {
-                  phone = text;
-                  break;
+              const telLink1 = businessCard.querySelector('a[href^="tel:"]');
+              if (telLink1) {
+                phone = telLink1.getAttribute('href').replace(/^tel:/, '').trim();
+              } else {
+                const phoneRe = /(\+?\d{1,3}[\s-]?)?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4}/;
+                const allSpans = businessCard.querySelectorAll('span');
+                for (const span of allSpans) {
+                  const text = span.textContent.trim();
+                  if (phoneRe.test(text) && !/www|http/i.test(text) && /(\+62|\+55|08|\(?\d{2}\)?[\s.-]?\d{4})/.test(text)) {
+                    phone = text;
+                    break;
+                  }
                 }
               }
               
@@ -123,25 +139,26 @@ class BusinessScraper {
               let referenceLink = '';
               const websiteLinks = businessCard.querySelectorAll('a');
               for (const link of websiteLinks) {
-                const href = link.href;
-                const text = link.textContent.trim();
-                
-                // Look for Google Maps reference link
-                if (href && href.includes('google.com/maps')) {
+                const href = link.href || '';
+                const text = (link.textContent || '').trim();
+
+                // Google Maps reference link
+                if (href.includes('google.com/maps')) {
                   referenceLink = href;
+                  continue;
                 }
-                
-                // Look for website links that are not Google Maps links
-                if (href && 
-                    !href.includes('google.com/maps') && 
-                    !href.includes('maps.google.com') &&
-                    (href.includes('.com') || href.includes('.co.id') || href.includes('.id')) &&
-                    (text.includes('Situs Web') || text.includes('Website') || text.includes('www'))) {
+
+                // Skip non-http, ads and Google-owned redirect links
+                if (!href.startsWith('http')) continue;
+                if (href.includes('/aclk') || href.includes('adssettings') || href.includes('maps.google') || href.includes('google.com/url')) continue;
+                if (website) continue;
+
+                if (/(website|site|www|\.com|\.com\.br|\.co\.id|\.id|\.net|\.org)/i.test(text + ' ' + href)) {
                   website = href;
                 }
               }
               
-              if (name && address) {
+              if (name) {
                 results.push({
                   name,
                   address,
@@ -166,28 +183,26 @@ class BusinessScraper {
             const card = businessCards[i];
             
             // Extract business name
-            const nameElement = card.querySelector('.qBF1Pd.fontHeadlineSmall');
-            const name = nameElement ? nameElement.textContent.trim() : '';
+            const nameElement = card.querySelector('.qBF1Pd.fontHeadlineSmall') || card.querySelector('a.hfpxzc');
+            const name = nameElement ? (nameElement.getAttribute('aria-label') || nameElement.textContent).trim() : '';
             
-            // Extract address
-            let address = '';
-            const allSpans = card.querySelectorAll('span');
-            for (const span of allSpans) {
-              const text = span.textContent.trim();
-              if (text.includes('Jl.') || text.includes('Street') || text.includes('Road') || text.includes('No.')) {
-                // Remove "· " prefix if present
-                address = text.replace(/^[·•]\s*/, '');
-                break;
-              }
-            }
-            
-            // Extract phone
+            // Extract address (robust, language-agnostic)
+            const address = extractAddress(card.querySelector('.UaQhfb'));
+
+            // Extract phone (prefer tel: links, else a phone-shaped span)
             let phone = '';
-            for (const span of allSpans) {
-              const text = span.textContent.trim();
-              if (text.match(/\d{3,}/) && (text.includes('+62') || text.includes('08') || text.includes('-'))) {
-                phone = text;
-                break;
+            const telLink = card.querySelector('a[href^="tel:"]');
+            if (telLink) {
+              phone = telLink.getAttribute('href').replace(/^tel:/, '').trim();
+            } else {
+              const phoneRe = /(\+?\d{1,3}[\s-]?)?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4}/;
+              const allSpans = card.querySelectorAll('span');
+              for (const span of allSpans) {
+                const text = span.textContent.trim();
+                if (phoneRe.test(text) && !/www|http/i.test(text) && /(\+62|\+55|08|\(?\d{2}\)?[\s.-]?\d{4})/.test(text)) {
+                  phone = text;
+                  break;
+                }
               }
             }
             
@@ -198,30 +213,31 @@ class BusinessScraper {
               rating = ratingElement.textContent.trim();
             }
             
-            // Extract website - look for website link specifically
-            let website = '';
-            let referenceLink = '';
-            const websiteLinks = card.querySelectorAll('a');
-            for (const link of websiteLinks) {
-              const href = link.href;
-              const text = link.textContent.trim();
-              
-              // Look for Google Maps reference link
-              if (href && href.includes('google.com/maps')) {
-                referenceLink = href;
+              // Extract website - look for website link specifically
+              let website = '';
+              let referenceLink = '';
+              const websiteLinks = card.querySelectorAll('a');
+              for (const link of websiteLinks) {
+                const href = link.href || '';
+                const text = (link.textContent || '').trim();
+
+                // Google Maps reference link
+                if (href.includes('google.com/maps')) {
+                  referenceLink = href;
+                  continue;
+                }
+
+                // Skip non-http, ads and Google-owned redirect links
+                if (!href.startsWith('http')) continue;
+                if (href.includes('/aclk') || href.includes('adssettings') || href.includes('maps.google') || href.includes('google.com/url')) continue;
+                if (website) continue;
+
+                if (/(website|site|www|\.com|\.com\.br|\.co\.id|\.id|\.net|\.org)/i.test(text + ' ' + href)) {
+                  website = href;
+                }
               }
-              
-              // Look for website links that are not Google Maps links
-              if (href && 
-                  !href.includes('google.com/maps') && 
-                  !href.includes('maps.google.com') &&
-                  (href.includes('.com') || href.includes('.co.id') || href.includes('.id')) &&
-                  (text.includes('Situs Web') || text.includes('Website') || text.includes('www'))) {
-                website = href;
-              }
-            }
             
-            if (name && address) {
+              if (name) {
               results.push({
                 name,
                 address,
@@ -304,7 +320,7 @@ class BusinessScraper {
         
         // Check current results count
         const resultCount = await page.evaluate(() => {
-          return document.querySelectorAll('.TFQHme').length;
+          return document.querySelectorAll('.Nv2PK').length;
         });
         
         console.log(`Scroll ${i + 1}/${maxScrollAttempts} - Current results: ${resultCount}`);

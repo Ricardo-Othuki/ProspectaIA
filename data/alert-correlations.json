@@ -1,0 +1,102 @@
+{
+  "whatsapp:3EB0B9130C7560DECE3A04": {
+    "leadId": "558888889781",
+    "kind": "price",
+    "createdAt": "2026-09-28T22:44:36.813Z"
+  },
+  "telegram:5": {
+    "leadId": "558888889781",
+    "kind": "price",
+    "createdAt": "2026-09-28T22:44:37.479Z"
+  },
+  "whatsapp:3EB0506921C77F526FE6E6": {
+    "leadId": "558888889781",
+    "kind": "price",
+    "createdAt": "2026-09-28T22:54:18.918Z"
+  },
+  "telegram:10": {
+    "leadId": "558888889781",
+    "kind": "price",
+    "createdAt": "2026-09-28T22:54:19.746Z"
+  },
+  "whatsapp:3EB0CDA29F3B1F9478EBB5": {
+    "leadId": "5517997448758",
+    "kind": "draft",
+    "createdAt": "2026-09-29T02:33:59.368Z"
+  },
+  "telegram:23": {
+    "leadId": "5517997448758",
+    "kind": "draft",
+    "createdAt": "2026-09-29T02:34:00.152Z"
+  },
+  "whatsapp:3EB02B29F7780F4D794596": {
+    "leadId": "553172121412",
+    "kind": "draft",
+    "createdAt": "2026-09-29T02:34:03.859Z"
+  },
+  "telegram:24": {
+    "leadId": "553172121412",
+    "kind": "draft",
+    "createdAt": "2026-09-29T02:34:04.229Z"
+  },
+  "whatsapp:3EB06C72B8958095D13C6C": {
+    "leadId": "5517997448758",
+    "kind": "draft",
+    "createdAt": "2026-09-29T02:46:41.873Z"
+  },
+  "telegram:26": {
+    "leadId": "5517997448758",
+    "kind": "draft",
+    "createdAt": "2026-09-29T02:46:42.560Z"
+  },
+  "whatsapp:3EB02F4F7A17A70A4BCE25": {
+    "leadId": "553172121412",
+    "kind": "draft",
+    "createdAt": "2026-09-29T02:46:47.428Z"
+  },
+  "telegram:27": {
+    "leadId": "553172121412",
+    "kind": "draft",
+    "createdAt": "2026-09-29T02:46:47.743Z"
+  },
+  "whatsapp:3EB02B369B1597C47AFD95": {
+    "leadId": "5517997448758",
+    "kind": "draft",
+    "createdAt": "2026-09-29T03:08:11.523Z"
+  },
+  "telegram:28": {
+    "leadId": "5517997448758",
+    "kind": "draft",
+    "createdAt": "2026-09-29T03:08:12.429Z"
+  },
+  "whatsapp:3EB052C35D79167075136D": {
+    "leadId": "553172121412",
+    "kind": "draft",
+    "createdAt": "2026-09-29T03:08:20.072Z"
+  },
+  "telegram:29": {
+    "leadId": "553172121412",
+    "kind": "draft",
+    "createdAt": "2026-09-29T03:08:20.707Z"
+  },
+  "whatsapp:3EB096D0CAD4370F1BDAC9": {
+    "leadId": "5517997448758",
+    "kind": "draft",
+    "createdAt": "2026-09-29T03:15:52.233Z"
+  },
+  "telegram:30": {
+    "leadId": "5517997448758",
+    "kind": "draft",
+    "createdAt": "2026-09-29T03:15:53.515Z"
+  },
+  "whatsapp:3EB001CDD8CE5C67788B81": {
+    "leadId": "553172121412",
+    "kind": "draft",
+    "createdAt": "2026-09-29T03:16:06.161Z"
+  },
+  "telegram:31": {
+    "leadId": "553172121412",
+    "kind": "draft",
+    "createdAt": "2026-09-29T03:16:07.537Z"
+  }
+}

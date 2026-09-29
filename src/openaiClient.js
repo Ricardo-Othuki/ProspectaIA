@@ -1,12 +1,12 @@
 /**
- * Centralized OpenAI Client Configuration
+ * Centralized AI Client Configuration
  * 
  * All modules should import from here instead of creating their own instances.
- * Supports OPENAI_BASE_URL for custom/proxy endpoints (e.g., Azure, local LLMs).
+ * Supports Google Gemini (free tier) via OpenAI-compatible endpoint.
  */
 require('dotenv').config();
 
-const DEFAULT_MODEL = 'gpt-4o-mini';
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 let openaiInstance = null;
 let initError = null;
@@ -18,23 +18,32 @@ function createClient() {
         const OpenAI = require('openai');
 
         const config = {
-            apiKey: process.env.OPENAI_API_KEY,
+            apiKey: process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY,
         };
 
-        // Support custom base URL (e.g., Azure OpenAI, local LLM proxies, OpenRouter, etc.)
+        // Support custom base URL (Google Gemini, Azure, OpenRouter, etc.)
         if (process.env.OPENAI_BASE_URL) {
             config.baseURL = process.env.OPENAI_BASE_URL;
-            console.log(`🔗 OpenAI base URL: ${process.env.OPENAI_BASE_URL}`);
+            console.log(`🔗 AI endpoint: ${process.env.OPENAI_BASE_URL}`);
         }
 
         openaiInstance = new OpenAI(config);
-        console.log('✅ OpenAI client initialized successfully');
+        
+        // Detect provider
+        const baseUrl = process.env.OPENAI_BASE_URL || '';
+        if (baseUrl.includes('google')) {
+            console.log('✅ Google Gemini client initialized (free tier)');
+        } else {
+            console.log('✅ OpenAI client initialized');
+        }
+        
         return openaiInstance;
     } catch (error) {
         initError = error;
-        console.error('❌ Error initializing OpenAI client:', error.message);
-        console.log('💡 Make sure to install: npm install openai');
-        console.log('💡 Set OPENAI_API_KEY in your .env file');
+        console.error('❌ Error initializing AI client:', error.message);
+        console.log('💡 For Google Gemini (free):');
+        console.log('   1. Get key at: https://aistudio.google.com/apikey');
+        console.log('   2. Set GEMINI_API_KEY in .env file');
         return null;
     }
 }

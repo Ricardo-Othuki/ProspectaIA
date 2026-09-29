@@ -9,6 +9,18 @@ const MarketingAutomation = require('../marketing');
 const MarketingAI = require('../marketingAI');
 const LeadIntelligence = require('../leadIntelligence');
 const CampaignBuilder = require('../campaign');
+const { SettingsStore } = require('../settingsStore');
+const { getProfile, save: saveBusinessProfile, validate: validateBusinessProfile } = require('../businessProfile');
+const { isConfigured, getModel } = require('../openaiClient');
+const WhatsAppIntegration = require('../whatsappIntegration');
+const GoogleCalendarIntegration = require('../googleCalendarIntegration');
+const { FlowSimulationRunner } = require('../flowSimulationRunner');
+const agentRoutes = require('../routes/agentRoutes');
+const leadRadarRoutes = require('../routes/leadRadarRoutes');
+const leadRadar = require('../leadRadar');
+const knowledgeSources = require('../knowledgeSources');
+const telegramPoller = require('../telegramPoller');
+const events = require('../events');
 
 const app = express();
 const PORT = process.env.WEB_PORT || 3000;
@@ -21,6 +33,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Store for active campaigns and SSE connections
 const activeCampaigns = new Map();
 const sseConnections = new Set();
+const settingsStore = new SettingsStore();
 
 // Utility function to load user preferences
 function loadUserPreferences() {
@@ -103,6 +116,90 @@ app.get('/api/events', (req, res) => {
     });
 });
 
+function getSettingsReadiness() {
+    const whatsapp = new WhatsAppIntegration();
+    const calendar = new GoogleCalendarIntegration();
+    return {
+        ai: { configured: isConfigured(), model: getModel() },
+        whatsapp: {
+            provider: whatsapp.provider,
+            instance: whatsapp.evolutionInstance || null,
+            configured: whatsapp.provider !== 'evolution' || Boolean(whatsapp.evolutionUrl && whatsapp.evolutionApiKey && whatsapp.evolutionInstance),
+            monitoringAdminConfigured: Boolean(process.env.WHATSAPP_MONITORING_ADMIN_TOKEN),
+            testGroup: {
+                id: process.env.TARGET_GROUP_ID || null,
+                name: process.env.TARGET_GROUP_NAME || null
+            }
+        },
+        supabase: {
+            configured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+        },
+        leadRadar: {
+            model: process.env.LEAD_RADAR_MODEL || 'gemini-2.5-flash-lite',
+            pollMinutes: Number(process.env.LEAD_RADAR_POLL_MINUTES || 0),
+            autoScanRunning: leadRadar.isAutoScanRunning(),
+            alerts: settingsStore.get().alerts,
+            ownerWhatsappConfigured: Boolean(settingsStore.get().alerts.whatsappGroupId || process.env.TARGET_GROUP_ID || process.env.OWNER_NOTIFY_PHONE),
+            telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN && (settingsStore.get().alerts.telegramChatId || process.env.TELEGRAM_CHAT_ID))
+        },
+        calendar: { configured: fs.existsSync(calendar.credentialsPath), calendarId: calendar.calendarId },
+        system: { node: process.version, uptime: Math.round(process.uptime()) }
+    };
+}
+
+app.get('/api/settings', (req, res) => {
+    res.json({ success: true, settings: settingsStore.get(), profile: getProfile(), readiness: getSettingsReadiness(), knowledgeExtra: knowledgeSources.get() });
+});
+
+app.put('/api/settings/knowledge', (req, res) => {
+    try {
+        const text = req.body?.text;
+        if (typeof text !== 'string') return res.status(400).json({ error: 'Texto inválido' });
+        const saved = knowledgeSources.save(text);
+        res.json({ success: true, knowledgeExtra: saved });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+app.put('/api/settings', (req, res) => {
+    try {
+        const settings = settingsStore.update(req.body?.settings || {});
+        res.json({ success: true, settings, readiness: getSettingsReadiness() });
+    } catch (error) {
+        res.status(400).json({ error: error.message, fields: error.fields || {} });
+    }
+});
+
+app.put('/api/settings/profile', (req, res) => {
+    try {
+        const profile = req.body?.profile;
+        if (!profile || typeof profile !== 'object') return res.status(400).json({ error: 'Perfil inválido' });
+        const warnings = validateBusinessProfile(profile);
+        saveBusinessProfile(profile);
+        res.json({ success: true, profile: getProfile(), warnings });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+app.get('/api/simulations/scenarios', (req, res) => {
+    res.json({ success: true, scenarios: new FlowSimulationRunner().listScenarios() });
+});
+
+app.post('/api/simulations/run', (req, res) => {
+    try {
+        const report = new FlowSimulationRunner().run(req.body?.scenario || 'padrao');
+        res.json({ success: report.success, report });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// Lead Agent API Routes
+app.use('/api/agent', agentRoutes);
+app.use('/api/lead-radar', leadRadarRoutes);
+
 // Function to broadcast SSE message to all connected clients
 function broadcastSSE(data) {
     const message = `data: ${JSON.stringify(data)}\n\n`;
@@ -114,6 +211,10 @@ function broadcastSSE(data) {
         }
     });
 }
+
+// Repassa notificações do backend (rascunho pronto, lead do radar detectado)
+// para o painel em tempo real, via o mesmo canal SSE já existente.
+events.on('notification', payload => broadcastSSE({ type: 'notification', ...payload }));
 
 // API Routes
 
@@ -602,6 +703,8 @@ const server = app.listen(PORT, () => {
     console.log(`📊 Dashboard: http://localhost:${PORT}`);
     console.log(`🔌 API: http://localhost:${PORT}/api`);
     console.log(`❤️  Health: http://localhost:${PORT}/api/health`);
+    leadRadar.startPoller();
+    telegramPoller.start();
 });
 
 // Graceful shutdown

@@ -5,13 +5,15 @@
 class Dashboard {
     constructor() {
         this.currentSection = 'dashboard';
+        this.monitoringAdminToken = '';
         this.dashboardData = null;
         this.campaigns = [];
         this.currentCampaign = null;
         this.leadsTable = null;
         this.progressManager = null;
         this.eventSource = null;
-        
+        this.alerts = [];
+
         this.init();
     }
 
@@ -19,11 +21,20 @@ class Dashboard {
         this.initTheme();
         this.setupEventListeners();
         this.setupMobileNav();
+        this.setupAlertBell();
         this.setupRealTimeUpdates();
         this.progressManager = new ProgressManager('campaignProgressModal');
         
         await this.loadDashboard();
         await this.loadCampaigns();
+
+        // Auto-refresh da lista de conversas enquanto a seção está aberta
+        setInterval(() => {
+            if (this.currentSection === 'conversations' &&
+                document.activeElement?.id !== 'manualMessageInput') {
+                this.loadConversations();
+            }
+        }, 6000);
     }
 
     // ─── Theme Management ───────────────────────────────────
@@ -111,6 +122,213 @@ class Dashboard {
                 if (section) this.showSection(section);
             });
         });
+
+        const campaignSettingsForm = document.getElementById('campaignSettingsForm');
+        if (campaignSettingsForm) campaignSettingsForm.addEventListener('submit', event => this.saveSettings(event));
+        const profileSettingsForm = document.getElementById('profileSettingsForm');
+        if (profileSettingsForm) profileSettingsForm.addEventListener('submit', event => this.saveProfileSettings(event));
+        const knowledgeSettingsForm = document.getElementById('knowledgeSettingsForm');
+        if (knowledgeSettingsForm) knowledgeSettingsForm.addEventListener('submit', event => this.saveKnowledgeExtra(event));
+        document.querySelectorAll('.settings-subnav-item').forEach(item => {
+            item.addEventListener('click', () => this.showSettingsTab(item.dataset.settingsTab));
+        });
+        const knowledgeExtraText = document.getElementById('knowledgeExtraText');
+        if (knowledgeExtraText) knowledgeExtraText.addEventListener('input', () => { knowledgeExtraText.dataset.touched = '1'; });
+        const runSimulationButton = document.getElementById('runSimulationButton');
+        if (runSimulationButton) runSimulationButton.addEventListener('click', () => this.runSimulation());
+        const loadMonitoringButton = document.getElementById('loadMonitoringButton');
+        if (loadMonitoringButton) loadMonitoringButton.addEventListener('click', () => this.loadMonitoring());
+        const monitoringTargetForm = document.getElementById('monitoringTargetForm');
+        if (monitoringTargetForm) monitoringTargetForm.addEventListener('submit', event => this.addMonitoringTarget(event));
+        const webhookForm = document.getElementById('webhookForm');
+        if (webhookForm) webhookForm.addEventListener('submit', event => this.registerMonitoringWebhook(event));
+
+        ['radarFilterPeriod', 'radarFilterPriority', 'radarFilterGroup', 'radarFilterStatus'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', () => this.loadRadarLeads());
+        });
+        const radarAlertsForm = document.getElementById('radarAlertsForm');
+        if (radarAlertsForm) radarAlertsForm.addEventListener('submit', event => this.saveRadarAlertSettings(event));
+        ['radarAlertWhatsappGroup', 'radarAlertTelegramChat', 'radarAlertOwnerNumber'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', () => { el.dataset.touched = '1'; });
+        });
+    }
+
+    showSettingsFeedback(message, isError = false) {
+        const element = document.getElementById('settingsFeedback');
+        if (!element) return;
+        element.textContent = message;
+        element.className = `settings-feedback ${isError ? 'error' : 'success'}`;
+    }
+
+    showSettingsTab(tab) {
+        if (!tab) return;
+        document.querySelectorAll('.settings-subnav-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.settingsTab === tab);
+        });
+        document.querySelectorAll('.settings-tab-panel').forEach(panel => {
+            panel.classList.toggle('active', panel.dataset.settingsPanel === tab);
+        });
+    }
+
+    async loadSettings() {
+        try {
+            const data = await api.getSettings();
+            const { settings, readiness } = data;
+            document.getElementById('settingIndustry').value = settings.campaign.industry;
+            document.getElementById('settingStyle').value = settings.campaign.style;
+            document.getElementById('settingLanguage').value = settings.campaign.language;
+            document.getElementById('settingFormat').value = settings.campaign.outputFormat;
+            document.getElementById('settingResultLimit').value = settings.campaign.resultLimit;
+            document.getElementById('settingMinScore').value = settings.campaign.minLeadScore;
+            document.getElementById('settingModel').value = settings.generation.model;
+            document.getElementById('settingMaxContent').value = settings.generation.maxContentGeneration;
+            document.getElementById('settingMultiTouch').checked = settings.generation.multiTouch;
+            document.getElementById('profileName').value = data.profile.business?.name || '';
+            document.getElementById('profileType').value = data.profile.business?.type || '';
+            document.getElementById('profilePhone').value = data.profile.business?.phone || '';
+            document.getElementById('profileEmail').value = data.profile.business?.email || '';
+            document.getElementById('profileWebsite').value = data.profile.business?.website || '';
+            document.getElementById('profileDescription').value = data.profile.business?.description || '';
+            const knowledgeField = document.getElementById('knowledgeExtraText');
+            if (knowledgeField && !knowledgeField.dataset.touched) knowledgeField.value = data.knowledgeExtra || '';
+            document.getElementById('settingsReadiness').innerHTML = [
+                ['IA', readiness.ai.configured, readiness.ai.model],
+                ['WhatsApp', readiness.whatsapp.configured, readiness.whatsapp.provider],
+                ['Token de monitoramento', readiness.whatsapp.monitoringAdminConfigured, 'configurado no .env'],
+                ['Grupo de teste WhatsApp', Boolean(readiness.whatsapp.testGroup?.id), readiness.whatsapp.testGroup?.name || ''],
+                ['Google Calendar', readiness.calendar.configured, readiness.calendar.calendarId],
+                ['Supabase (conversas)', readiness.supabase?.configured, readiness.supabase?.configured ? 'conectado' : 'defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env']
+            ].map(([name, ready, detail]) => `<div class="readiness-row"><strong>${api.safeString(name)}</strong><span class="${ready ? 'ready' : 'not-ready'}">${ready ? 'Pronto' : 'Pendente'}</span><small>${api.safeString(detail || '')}</small></div>`).join('');
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    async saveSettings(event) {
+        event.preventDefault();
+        try {
+            const settings = {
+                campaign: {
+                    industry: document.getElementById('settingIndustry').value.trim(),
+                    style: document.getElementById('settingStyle').value,
+                    language: document.getElementById('settingLanguage').value,
+                    outputFormat: document.getElementById('settingFormat').value,
+                    resultLimit: Number(document.getElementById('settingResultLimit').value),
+                    minLeadScore: Number(document.getElementById('settingMinScore').value)
+                },
+                generation: {
+                    model: document.getElementById('settingModel').value.trim(),
+                    maxContentGeneration: Number(document.getElementById('settingMaxContent').value),
+                    multiTouch: document.getElementById('settingMultiTouch').checked
+                }
+            };
+            await api.saveSettings(settings);
+            this.showSettingsFeedback('Configurações salvas. Segredos permanecem no .env.');
+            await this.loadSettings();
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    async saveProfileSettings(event) {
+        event.preventDefault();
+        try {
+            const data = await api.getSettings();
+            const profile = data.profile;
+            profile.business = {
+                ...profile.business,
+                name: document.getElementById('profileName').value.trim(),
+                type: document.getElementById('profileType').value.trim(),
+                phone: document.getElementById('profilePhone').value.trim(),
+                email: document.getElementById('profileEmail').value.trim(),
+                website: document.getElementById('profileWebsite').value.trim(),
+                description: document.getElementById('profileDescription').value.trim()
+            };
+            const result = await api.saveProfile(profile);
+            this.showSettingsFeedback(result.warnings?.length ? `Perfil salvo com avisos: ${result.warnings.join(' ')}` : 'Perfil do negócio salvo.');
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    async saveKnowledgeExtra(event) {
+        event.preventDefault();
+        try {
+            const text = document.getElementById('knowledgeExtraText').value;
+            await api.saveKnowledgeExtra(text);
+            document.getElementById('knowledgeExtraText')?.removeAttribute('data-touched');
+            this.showSettingsFeedback('Base de conhecimento extra salva.');
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    async runSimulation() {
+        try {
+            const scenario = document.getElementById('simulationScenario').value;
+            const data = await api.runSimulation(scenario);
+            const report = data.report;
+            document.getElementById('simulationReport').innerHTML = `<p><strong>${report.success ? 'Simulação aprovada' : 'Simulação reprovada'}</strong></p><p>${report.summary.leadsDiscovered} leads descobertos, ${report.summary.leadsQualified} qualificados e ${report.summary.monitoring.length} eventos monitorados.</p><p>Segurança: ${report.safety.confirmed ? 'nenhum efeito externo ocorreu.' : 'falha de isolamento detectada.'}</p><p class="settings-help">Relatório salvo em ${api.safeString(report.reportPath)}</p>`;
+            this.showSettingsFeedback('Simulação concluída com dados fictícios.');
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    getMonitoringToken() {
+        this.monitoringAdminToken = document.getElementById('monitoringToken')?.value || '';
+        return this.monitoringAdminToken;
+    }
+
+    async loadMonitoring() {
+        try {
+            const data = await api.getMonitoringStatus(this.getMonitoringToken());
+            document.getElementById('monitoringStatus').innerHTML = `<p>Evolution: <strong>${data.provider.connected ? 'conectada' : 'não confirmada'}</strong></p>`;
+            const targets = [...data.monitoring.phones, ...data.monitoring.groups];
+            document.getElementById('monitoringTargets').innerHTML = targets.length
+                ? targets.map(target => `<div class="monitoring-target"><code>${api.safeString(target)}</code><button class="btn btn-danger btn-sm" data-target="${encodeURIComponent(target)}">Remover</button></div>`).join('')
+                : '<p class="settings-help">Nenhum contato ou grupo permitido.</p>';
+            document.querySelectorAll('#monitoringTargets button').forEach(button => button.addEventListener('click', () => this.removeMonitoringTarget(decodeURIComponent(button.dataset.target))));
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    async addMonitoringTarget(event) {
+        event.preventDefault();
+        try {
+            const value = document.getElementById('monitoringTarget').value.trim();
+            const payload = value.toLowerCase().endsWith('@g.us') ? { groupId: value } : { phone: value };
+            await api.addMonitoringTarget(this.getMonitoringToken(), payload);
+            document.getElementById('monitoringTarget').value = '';
+            this.showSettingsFeedback('Alvo adicionado ao monitoramento.');
+            await this.loadMonitoring();
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    async removeMonitoringTarget(value) {
+        try {
+            const payload = value.toLowerCase().endsWith('@g.us') ? { groupId: value } : { phone: value };
+            await api.removeMonitoringTarget(this.getMonitoringToken(), payload);
+            this.showSettingsFeedback('Alvo removido do monitoramento.');
+            await this.loadMonitoring();
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    async registerMonitoringWebhook(event) {
+        event.preventDefault();
+        try {
+            await api.registerMonitoringWebhook(this.getMonitoringToken(), document.getElementById('webhookUrl').value.trim());
+            this.showSettingsFeedback('Webhook registrado na Evolution API.');
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
     }
 
     // ─── Section Navigation ─────────────────────────────────
@@ -143,9 +361,12 @@ class Dashboard {
         this.closeMobileMenu();
 
         // Load section data
+        if (sectionName === 'settings') this.loadSettings();
         if (sectionName === 'analytics') this.loadAnalytics();
         if (sectionName === 'leads') this.loadLeadsSection();
         if (sectionName === 'campaigns') this.loadCampaigns();
+        if (sectionName === 'conversations') this.loadConversations();
+        if (sectionName === 'lead-radar') this.loadLeadRadar();
     }
 
     // ─── Real-Time Updates (SSE) ────────────────────────────
@@ -192,6 +413,114 @@ class Dashboard {
                     this.progressManager.error(data.message);
                 }
                 break;
+            case 'notification':
+                this.pushAlert(data);
+                break;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // ALERT BELL (notificações visuais + sonoras)
+    // ═══════════════════════════════════════════════════════
+
+    setupAlertBell() {
+        const bellBtn = document.getElementById('alertBellBtn');
+        const dropdown = document.getElementById('alertBellDropdown');
+        const clearBtn = document.getElementById('alertBellClear');
+        if (bellBtn && dropdown) {
+            bellBtn.addEventListener('click', event => {
+                event.stopPropagation();
+                dropdown.classList.toggle('open');
+                if (dropdown.classList.contains('open')) this.markAlertsRead();
+            });
+            document.addEventListener('click', event => {
+                if (!dropdown.contains(event.target) && event.target !== bellBtn) dropdown.classList.remove('open');
+            });
+        }
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                this.alerts = [];
+                this.renderAlertBell();
+            });
+        }
+    }
+
+    pushAlert(data) {
+        const titles = {
+            draft_ready: '📝 Rascunho pronto',
+            radar_lead: '🎯 Lead detectado no radar'
+        };
+        const messages = {
+            draft_ready: `${data.leadName}: "${data.preview || ''}"`,
+            radar_lead: `${data.leadName || 'Alguém'} em "${data.groupName || 'grupo'}": ${data.summary || ''}`
+        };
+
+        const alert = {
+            id: Date.now() + Math.random(),
+            kind: data.kind,
+            priority: data.priority,
+            title: titles[data.kind] || 'Notificação',
+            message: messages[data.kind] || '',
+            timestamp: new Date(),
+            read: false
+        };
+
+        this.alerts.unshift(alert);
+        if (this.alerts.length > 30) this.alerts.length = 30;
+
+        this.renderAlertBell(true);
+        this.playAlertSound();
+        showNotification(alert.title, alert.message, data.kind === 'draft_ready' ? 'warning' : 'info');
+    }
+
+    markAlertsRead() {
+        this.alerts.forEach(a => { a.read = true; });
+        this.renderAlertBell();
+    }
+
+    renderAlertBell(justArrived = false) {
+        const badge = document.getElementById('alertBellBadge');
+        const bell = document.getElementById('alertBellBtn');
+        const list = document.getElementById('alertBellList');
+        const unread = this.alerts.filter(a => !a.read).length;
+
+        if (badge) {
+            badge.style.display = unread > 0 ? 'flex' : 'none';
+            badge.textContent = unread > 9 ? '9+' : String(unread);
+        }
+        if (bell && justArrived) {
+            bell.classList.remove('has-new');
+            void bell.offsetWidth;
+            bell.classList.add('has-new');
+        }
+        if (list) {
+            list.innerHTML = this.alerts.length
+                ? this.alerts.map(a => `
+                    <div class="alert-item ${a.priority ? `priority-${a.priority}` : ''} kind-${a.kind}">
+                        <span class="alert-item-title">${api.safeString(a.title)}</span>
+                        <span>${api.safeString(a.message)}</span>
+                        <span class="alert-item-meta">${api.formatDateSafe(a.timestamp)}</span>
+                    </div>
+                `).join('')
+                : '<p class="empty-message">Nenhuma notificação ainda.</p>';
+        }
+    }
+
+    playAlertSound() {
+        try {
+            const ctx = this._audioCtx || (this._audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.setValueAtTime(660, ctx.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.35);
+        } catch (error) {
+            // Áudio pode ser bloqueado até o usuário interagir com a página — silencioso.
         }
     }
 
@@ -465,6 +794,437 @@ class Dashboard {
     }
 
     // ═══════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════
+    // CONVERSATIONS (Agente de Prospecção)
+    // ═════════════════════════════════════════════════════
+
+    async loadConversations() {
+        try {
+            const conversations = await api.getConversations();
+            this.renderConversations(conversations);
+            const badge = document.getElementById('conversationCount');
+            if (badge) badge.textContent = conversations.length || 0;
+        } catch (error) {
+            api.handleError(error, 'loading conversations');
+        }
+    }
+
+    statusLabel(status) {
+        const map = {
+            initiated: 'Iniciado',
+            awaiting_approval: 'Aguardando aprovação',
+            contacted: 'Contatado',
+            engaged: 'Engajado',
+            in_progress: 'Em andamento',
+            scheduling: 'Agendando',
+            transferring: 'Transferindo',
+            completed: 'Concluído',
+            failed: 'Falhou',
+            human_takeover: 'Humano'
+        };
+        return map[status] || status;
+    }
+
+    lastMessagePreview(c) {
+        if (!c.messages || !c.messages.length) return '';
+        const m = c.messages[c.messages.length - 1];
+        const prefix = m.type === 'inbound' ? '' : (m.source === 'human' ? '🧑 ' : '🤖 ');
+        return prefix + (m.content || '').slice(0, 60);
+    }
+
+    renderConversations(conversations) {
+        const list = document.getElementById('conversationsList');
+        if (!list) return;
+
+        if (!conversations || conversations.length === 0) {
+            list.innerHTML = `
+                <div class="card" style="text-align:center;padding:2rem">
+                    <p class="empty-title">Nenhuma conversa ainda</p>
+                    <p class="empty-message">Inicie uma prospecção (outreach) para ver as conversas do agente aqui.</p>
+                </div>`;
+            return;
+        }
+
+        list.innerHTML = conversations.map(c => `
+            <div class="conversation-item ${c.humanControlled ? 'human' : ''} ${this.currentConversationId == c.leadId ? 'active' : ''}"
+                 onclick="dashboard.selectConversation('${c.leadId}')">
+                <div class="conversation-item-header">
+                    <span class="conversation-name">${api.safeString(c.leadName)}</span>
+                    <span class="status-badge status-${c.status}">${this.statusLabel(c.status)}</span>
+                </div>
+                <div class="conversation-preview">${api.safeString(this.lastMessagePreview(c))}</div>
+                <div class="conversation-meta">
+                    ${c.humanControlled
+                        ? '<span class="badge-human">🧑‍💼 Humano</span>'
+                        : '<span class="badge-ia">🤖 IA</span>'}
+                    ${c.pendingMessage ? '<span class="badge-pending">⏳ Aguardando aprovação</span>' : ''}
+                    <span>${api.formatDateSafe(c.lastActivity)}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async selectConversation(leadId) {
+        this.currentConversationId = leadId;
+        const detail = document.getElementById('conversationDetail');
+        if (detail) detail.innerHTML = '<div class="loading">Carregando conversa...</div>';
+        try {
+            const conversation = await api.getConversation(leadId);
+            this.renderConversationDetail(conversation);
+            this.highlightConversation(leadId);
+        } catch (error) {
+            if (detail) detail.innerHTML = '<p class="empty-title">Falha ao carregar conversa</p>';
+            api.handleError(error, 'loading conversation');
+        }
+    }
+
+    highlightConversation(leadId) {
+        document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.conversation-item').forEach(el => {
+            const onclick = el.getAttribute('onclick') || '';
+            if (onclick.includes(`selectConversation('${leadId}')`)) el.classList.add('active');
+        });
+    }
+
+    renderConversationDetail(c) {
+        const detail = document.getElementById('conversationDetail');
+        if (!detail) return;
+        if (!c) { detail.innerHTML = '<p class="empty-title">Conversa não encontrada</p>'; return; }
+
+        const messagesHtml = (c.messages || []).map(m => {
+            const cls = m.type === 'inbound' ? 'msg-in' : 'msg-out';
+            const who = m.type === 'inbound'
+                ? api.safeString(c.leadName)
+                : (m.source === 'human' ? '🧑 Atendente' : '🤖 Agente IA');
+            return `
+                <div class="chat-bubble ${cls}">
+                    <div class="chat-meta">${who} · ${api.formatDateSafe(m.timestamp)}</div>
+                    <div class="chat-text">${api.safeString(m.content)}</div>
+                </div>`;
+        }).join('');
+
+        const pitchHtml = c.pitch ? `
+            <div class="pitch-card">
+                <div class="pitch-title">📦 ${api.safeString(c.pitch.productName || 'Produto')}</div>
+                ${c.pitch.summary ? `<div class="pitch-summary">${api.safeString(c.pitch.summary)}</div>` : ''}
+                ${c.pitch.landingPage ? `<a class="pitch-link" href="${api.safeString(c.pitch.landingPage)}" target="_blank" rel="noopener">${api.safeString(c.pitch.landingPage)}</a>` : ''}
+                <div class="pitch-target">Destino do envio: ${c.testTarget ? `🧪 ${api.safeString(c.testTarget.label || c.testTarget.value)} (teste)` : `📱 ${api.safeString(c.leadPhone || '')} (número real do lead)`}</div>
+            </div>` : '';
+
+        const authHtml = c.pendingAuthorization ? `
+            <div class="pending-message-card auth-pending">
+                <div class="pending-title">🔒 Aguardando sua autorização (${c.pendingAuthorization.kind === 'price' ? 'valor' : 'fechamento'})</div>
+                <div class="radar-lead-message">"${api.safeString(c.pendingAuthorization.question || c.pendingAuthorization.dealSummary)}"</div>
+                <p class="settings-help">Responda ao alerta que recebeu no WhatsApp ou Telegram (reply na mensagem) para autorizar — vira um novo rascunho aqui automaticamente.</p>
+            </div>` : '';
+
+        const pendingHtml = c.pendingMessage ? `
+            <div class="pending-message-card">
+                <div class="pending-title">⏳ Aguardando sua aprovação</div>
+                ${c.pendingMessage.sendError ? `<div class="pending-error">Falha no último envio: ${api.safeString(c.pendingMessage.sendError)}</div>` : ''}
+                <textarea id="pendingMessageInput" class="chat-input" rows="4">${api.safeString(c.pendingMessage.content, '')}</textarea>
+                <div class="pending-actions">
+                    <button class="btn btn-primary btn-sm" onclick="dashboard.approvePending('${c.leadId}', false)">✅ Aprovar envio</button>
+                    <button class="btn btn-secondary btn-sm" onclick="dashboard.approvePending('${c.leadId}', true)">✏️ Alterar e enviar</button>
+                    <button class="btn btn-danger btn-sm" onclick="dashboard.discardPending('${c.leadId}')">❌ Não enviar</button>
+                </div>
+            </div>` : '';
+
+        detail.innerHTML = `
+            <div class="conversation-detail-header">
+                <div>
+                    <h3>${api.safeString(c.leadName)}</h3>
+                    <div class="conversation-sub">${api.safeString(c.leadPhone || '')} · Status: ${this.statusLabel(c.status)}</div>
+                </div>
+                <div class="conversation-actions">
+                    ${c.humanControlled
+                        ? `<button class="btn btn-secondary btn-sm" onclick="dashboard.releaseConversation('${c.leadId}')">↩ Devolver à IA</button>`
+                        : `<button class="btn btn-primary btn-sm" onclick="dashboard.takeoverConversation('${c.leadId}')">🧑‍💼 Assumir conversa</button>`}
+                </div>
+            </div>
+            ${pitchHtml}
+            <div class="chat-container" id="chatContainer">${messagesHtml || '<p class="empty-message">Sem mensagens</p>'}</div>
+            ${authHtml}
+            ${pendingHtml}
+            <div class="chat-input-area">
+                <textarea id="manualMessageInput" class="chat-input" rows="2"
+                    placeholder="${c.humanControlled ? 'Escreva como atendente humano...' : 'Assuma a conversa para responder manualmente (ou escreva para interagir)...'}"></textarea>
+                <button class="btn btn-primary" onclick="dashboard.sendManual('${c.leadId}')">Enviar</button>
+            </div>
+        `;
+
+        const cc = document.getElementById('chatContainer');
+        if (cc) cc.scrollTop = cc.scrollHeight;
+    }
+
+    async takeoverConversation(leadId) {
+        try {
+            await api.takeoverConversation(leadId);
+            showNotification('Conversa assumida', 'A IA parou de responder automaticamente. Agora você atende como humano.', 'success');
+            this.selectConversation(leadId);
+        } catch (error) { api.handleError(error, 'assumir conversa'); }
+    }
+
+    async releaseConversation(leadId) {
+        try {
+            await api.releaseConversation(leadId);
+            showNotification('Controle devolvido', 'A IA retomou o atendimento automático.', 'info');
+            this.selectConversation(leadId);
+        } catch (error) { api.handleError(error, 'devolver conversa'); }
+    }
+
+    async approvePending(leadId, useEdited) {
+        const input = document.getElementById('pendingMessageInput');
+        const editedContent = useEdited && input ? input.value.trim() : undefined;
+        try {
+            await api.approveMessage(leadId, editedContent ? { editedContent } : {});
+            showNotification('Mensagem enviada', 'O rascunho foi aprovado e enviado.', 'success');
+            this.refreshConversations();
+        } catch (error) { api.handleError(error, 'aprovar mensagem'); }
+    }
+
+    async discardPending(leadId) {
+        try {
+            await api.discardMessage(leadId);
+            showNotification('Rascunho descartado', 'Nada foi enviado ao WhatsApp.', 'info');
+            this.refreshConversations();
+        } catch (error) { api.handleError(error, 'descartar mensagem'); }
+    }
+
+    async sendManual(leadId) {
+        const input = document.getElementById('manualMessageInput');
+        if (!input) return;
+        const message = input.value.trim();
+        if (!message) { showNotification('Aviso', 'Digite uma mensagem', 'warning'); return; }
+        try {
+            await api.sendManualMessage(leadId, message, 'Atendente');
+            input.value = '';
+            showNotification('Mensagem enviada', 'Registrada e enviada (modo simulação se configurado).', 'success');
+            this.selectConversation(leadId);
+        } catch (error) { api.handleError(error, 'enviar mensagem'); }
+    }
+
+    refreshConversations() {
+        this.loadConversations();
+        if (this.currentConversationId !== undefined && this.currentConversationId !== null) {
+            this.selectConversation(this.currentConversationId);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // LEAD RADAR (grupos do WhatsApp)
+    // ═══════════════════════════════════════════════════════
+
+    priorityLabel(priority) {
+        return { alta: 'Alta', media: 'Média', baixa: 'Baixa' }[priority] || priority;
+    }
+
+    radarStatusLabel(status) {
+        return { novo: 'Novo', contatado: 'Contatado', dispensado: 'Dispensado' }[status] || status;
+    }
+
+    async loadLeadRadar() {
+        await Promise.all([this.loadRadarGroupsFilter(), this.loadRadarLeads(), this.loadRadarSettingsPanel()]);
+    }
+
+    async loadRadarGroupsFilter() {
+        if (this._radarGroupsCache) return this._radarGroupsCache;
+        try {
+            const result = await api.getRadarGroups();
+            this._radarGroupsCache = result.groups || [];
+            const select = document.getElementById('radarFilterGroup');
+            if (select) {
+                const current = select.value;
+                select.innerHTML = '<option value="">Todos os grupos</option>' +
+                    this._radarGroupsCache.map(g => `<option value="${api.safeString(g.id)}">${api.safeString(g.name || g.id)}</option>`).join('');
+                select.value = current;
+            }
+            return this._radarGroupsCache;
+        } catch (error) {
+            api.handleError(error, 'carregando grupos do radar');
+            return [];
+        }
+    }
+
+    groupNameFor(groupId) {
+        const group = (this._radarGroupsCache || []).find(g => g.id === groupId);
+        return group ? group.name : groupId;
+    }
+
+    async loadRadarLeads() {
+        const list = document.getElementById('radarLeadsList');
+        if (list) list.innerHTML = '<div class="skeleton skeleton-card" style="height: 100px"></div>';
+        try {
+            const since = document.getElementById('radarFilterPeriod')?.value || '7';
+            const priority = document.getElementById('radarFilterPriority')?.value || '';
+            const groupId = document.getElementById('radarFilterGroup')?.value || '';
+            const status = document.getElementById('radarFilterStatus')?.value || '';
+            const result = await api.getRadarLeads({ since, priority, groupId, status });
+            this.renderRadarLeads(result.leads || []);
+            const badge = document.getElementById('radarLeadCount');
+            if (badge) badge.textContent = (result.leads || []).filter(l => l.status === 'novo').length;
+        } catch (error) {
+            if (list) list.innerHTML = `<p class="empty-title">${api.safeString(error.message)}</p>`;
+        }
+    }
+
+    renderRadarLeads(leads) {
+        const list = document.getElementById('radarLeadsList');
+        if (!list) return;
+
+        if (!leads.length) {
+            list.innerHTML = `
+                <div class="card" style="text-align:center;padding:2rem">
+                    <p class="empty-title">Nenhum lead encontrado no período/filtro</p>
+                    <p class="empty-message">Clique em "Escanear agora" para varrer os grupos, ou ajuste os filtros.</p>
+                </div>`;
+            return;
+        }
+
+        list.innerHTML = leads.map(lead => `
+            <div class="radar-lead-card priority-${lead.priority}">
+                <div class="radar-lead-header">
+                    <span class="priority-badge priority-${lead.priority}">${this.priorityLabel(lead.priority)}</span>
+                    <span class="radar-lead-group">${api.safeString(lead.group_name || this.groupNameFor(lead.group_id))}</span>
+                    <span class="radar-lead-date">${api.formatDateSafe(lead.detected_at)}</span>
+                </div>
+                <div class="radar-lead-sender">👤 ${api.safeString(lead.sender_name, 'Desconhecido')}</div>
+                <div class="radar-lead-summary"><strong>Precisa de:</strong> ${api.safeString(lead.need_summary || lead.service_match, '-')}</div>
+                <div class="radar-lead-reason">${api.safeString(lead.relevance_reason || '')}</div>
+                <div class="radar-lead-message">"${api.safeString(lead.message_text)}"</div>
+                <div class="radar-lead-footer">
+                    <span class="status-badge">${this.radarStatusLabel(lead.status)}</span>
+                    <div class="radar-lead-actions">
+                        ${lead.status === 'novo' ? `<button class="btn btn-primary btn-sm" onclick="dashboard.contactRadarLead(${lead.id})">💬 Contatar este lead</button>` : ''}
+                        ${lead.status !== 'contatado' ? `<button class="btn btn-secondary btn-sm" onclick="dashboard.setRadarStatus(${lead.id}, 'contatado')">✅ Marcar contatado</button>` : ''}
+                        ${lead.status !== 'dispensado' ? `<button class="btn btn-secondary btn-sm" onclick="dashboard.setRadarStatus(${lead.id}, 'dispensado')">🚫 Dispensar</button>` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async contactRadarLead(id) {
+        try {
+            const result = await api.contactRadarLead(id);
+            showNotification('Contato iniciado', 'Rascunho da 1ª mensagem gerado — veja e aprove na aba Conversas.', 'success');
+            this.loadRadarLeads();
+            this.showSection('conversations');
+            this.selectConversation(result.conversation.leadId);
+        } catch (error) { api.handleError(error, 'contatar lead do radar'); }
+    }
+
+    async setRadarStatus(id, status) {
+        try {
+            await api.setRadarLeadStatus(id, status);
+            showNotification('Lead atualizado', `Status alterado para ${this.radarStatusLabel(status)}`, 'success');
+            this.loadRadarLeads();
+        } catch (error) { api.handleError(error, 'atualizar lead do radar'); }
+    }
+
+    async scanRadarNow() {
+        const button = document.getElementById('radarScanButton');
+        const lastScan = document.getElementById('radarLastScan');
+        if (button) { button.disabled = true; button.textContent = '🔎 Escaneando...'; }
+        try {
+            const result = await api.scanRadar(7);
+            const s = result.summary;
+            showNotification('Varredura concluída', `${s.groupsScanned} grupos, ${s.candidates} candidatos, ${s.leadsFound} leads novos`, 'success');
+            if (lastScan) lastScan.textContent = `Última varredura: ${api.formatDateSafe(new Date())}`;
+            this.loadRadarLeads();
+        } catch (error) {
+            api.handleError(error, 'escanear grupos');
+        } finally {
+            if (button) { button.disabled = false; button.textContent = '🔎 Escanear agora'; }
+        }
+    }
+
+    renderAutoScanToggle(radarReadiness) {
+        const button = document.getElementById('radarAutoScanToggle');
+        if (!button) return;
+
+        if (!radarReadiness?.pollMinutes) {
+            button.textContent = '⚠️ Intervalo não configurado';
+            button.disabled = true;
+            button.title = 'Defina LEAD_RADAR_POLL_MINUTES no .env para habilitar a varredura automática';
+            return;
+        }
+
+        button.disabled = false;
+        const running = radarReadiness.autoScanRunning;
+        button.textContent = running ? `⏸️ Pausar varredura automática (${radarReadiness.pollMinutes}min)` : '▶️ Retomar varredura automática';
+        button.dataset.running = running ? '1' : '0';
+        button.title = running ? 'Varredura automática ativa' : 'Varredura automática pausada';
+    }
+
+    async toggleAutoScan() {
+        const button = document.getElementById('radarAutoScanToggle');
+        const currentlyRunning = button?.dataset.running === '1';
+        try {
+            const result = await api.setRadarAutoScan(!currentlyRunning);
+            showNotification('Varredura automática', result.running ? 'Ligada' : 'Pausada', 'success');
+            this.loadRadarSettingsPanel();
+        } catch (error) { api.handleError(error, 'alternar varredura automática'); }
+    }
+
+    async loadRadarSettingsPanel() {
+        try {
+            const [groups, settings] = await Promise.all([this.loadRadarGroupsFilter(), api.getSettings()]);
+            const readiness = settings.readiness?.leadRadar || {};
+            const statusEl = document.getElementById('radarChannelsStatus');
+            if (statusEl) {
+                statusEl.innerHTML = `
+                    <div class="readiness-row"><strong>Modelo de classificação</strong><span class="ready">${api.safeString(readiness.model)}</span></div>
+                    <div class="readiness-row"><strong>WhatsApp (alerta)</strong><span class="${readiness.ownerWhatsappConfigured ? 'ready' : 'not-ready'}">${readiness.ownerWhatsappConfigured ? 'Pronto' : 'Pendente'}</span></div>
+                    <div class="readiness-row"><strong>Telegram</strong><span class="${readiness.telegramConfigured ? 'ready' : 'not-ready'}">${readiness.telegramConfigured ? 'Pronto' : 'Pendente'}</span></div>
+                    <div class="readiness-row"><strong>Varredura automática</strong><span class="${readiness.autoScanRunning ? 'ready' : 'not-ready'}">${readiness.pollMinutes ? (readiness.autoScanRunning ? `ativa, a cada ${readiness.pollMinutes} min` : 'pausada') : 'desativada'}</span></div>
+                `;
+            }
+            this.renderAutoScanToggle(readiness);
+            const whatsappInput = document.getElementById('radarAlertWhatsappGroup');
+            const telegramInput = document.getElementById('radarAlertTelegramChat');
+            const ownerNumberInput = document.getElementById('radarAlertOwnerNumber');
+            if (whatsappInput && !whatsappInput.dataset.touched) whatsappInput.value = readiness.alerts?.whatsappGroupId || '';
+            if (telegramInput && !telegramInput.dataset.touched) telegramInput.value = readiness.alerts?.telegramChatId || '';
+            if (ownerNumberInput && !ownerNumberInput.dataset.touched) ownerNumberInput.value = readiness.alerts?.ownerWhatsappNumber || '';
+            const groupsList = document.getElementById('radarGroupsList');
+            if (groupsList) {
+                groupsList.innerHTML = groups.map(g => `
+                    <label class="radar-group-toggle">
+                        <input type="checkbox" ${g.excluded ? '' : 'checked'} onchange="dashboard.toggleRadarGroup('${g.id}', !this.checked)">
+                        ${api.safeString(g.name || g.id)} <small>(${g.size || 0} membros)</small>
+                    </label>
+                `).join('');
+            }
+        } catch (error) {
+            api.handleError(error, 'carregando configurações do radar');
+        }
+    }
+
+    async saveRadarAlertSettings(event) {
+        event.preventDefault();
+        try {
+            const whatsappGroupId = document.getElementById('radarAlertWhatsappGroup')?.value.trim() || '';
+            const telegramChatId = document.getElementById('radarAlertTelegramChat')?.value.trim() || '';
+            const ownerWhatsappNumber = document.getElementById('radarAlertOwnerNumber')?.value.trim() || '';
+            await api.saveSettings({ alerts: { whatsappGroupId, telegramChatId, ownerWhatsappNumber } });
+            showNotification('Alertas salvos', 'Canais de alerta do radar atualizados.', 'success');
+            document.getElementById('radarAlertWhatsappGroup')?.removeAttribute('data-touched');
+            document.getElementById('radarAlertTelegramChat')?.removeAttribute('data-touched');
+            document.getElementById('radarAlertOwnerNumber')?.removeAttribute('data-touched');
+            this.loadRadarSettingsPanel();
+        } catch (error) { api.handleError(error, 'salvar canais de alerta'); }
+    }
+
+    async toggleRadarGroup(groupId, exclude) {
+        try {
+            if (exclude) await api.excludeRadarGroup(groupId);
+            else await api.includeRadarGroup(groupId);
+            this._radarGroupsCache = null;
+            this.loadRadarGroupsFilter();
+        } catch (error) { api.handleError(error, 'atualizar grupo do radar'); }
+    }
+
     // CAMPAIGN ACTIONS
     // ═══════════════════════════════════════════════════════
 
