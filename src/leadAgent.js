@@ -121,6 +121,7 @@ class LeadAgent {
             leadId: lead.id,
             leadName: lead.name,
             leadPhone: lead.phone,
+            radarSenderJid: lead.radarSenderJid || null,
             status: 'initiated',
             messages: [],
             pendingMessage: null,
@@ -316,7 +317,7 @@ class LeadAgent {
             throw new Error('Não consegui resolver o número real desse lead (participante pode ter saído do grupo).');
         }
 
-        const lead = { id: phone, name: radarLead.sender_name || 'Lead do grupo', phone };
+        const lead = { id: phone, name: radarLead.sender_name || 'Lead do grupo', phone, radarSenderJid: radarLead.sender_jid || null };
         const pitch = {
             summary: `O lead escreveu isto no grupo "${radarLead.group_name}": "${radarLead.message_text}". Responda como quem viu a mensagem no grupo e quer ajudar de verdade, de forma pessoal e natural — não como um script de vendas genérico, e sem mencionar nome de empresa/agência. Necessidade identificada: ${radarLead.need_summary || radarLead.service_match || 'não especificado'}.`
         };
@@ -1161,6 +1162,11 @@ Responda APENAS com um JSON:
      */
     async getConversation(leadId) {
         return conversationStore.getConversation(leadId);
+    }
+
+    async getConversationByRadarLeadId(radarLeadId) {
+        const conversations = await conversationStore.listConversations();
+        return conversations.find(conversation => String(conversation.radarLeadId || '') === String(radarLeadId || '')) || null;
     }
 
     /**

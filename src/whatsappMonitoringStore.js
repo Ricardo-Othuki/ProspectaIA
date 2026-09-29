@@ -208,6 +208,8 @@ function normalizeInboundEvent(payload) {
             eventId,
             target: targetInfo.value,
             targetType: targetInfo.type,
+            rawTarget: target || null,
+            senderJid: payload.senderJid || payload.participant || target || null,
             name: typeof payload.name === 'string' ? payload.name : undefined,
             message: directMessage,
             fromMe: payload.fromMe === true || payload.fromMe === 'true',
@@ -230,11 +232,14 @@ function normalizeInboundEvent(payload) {
         || message.imageMessage?.contextInfo?.stanzaId
         || undefined;
     const senderPhone = key.participant ? String(key.participant).replace(/\D/g, '') : (targetInfo.type === 'phone' ? targetInfo.value : undefined);
+    const senderJid = key.participant || (targetInfo.type === 'phone' ? target : undefined);
 
     return {
         eventId,
         target: targetInfo.value,
         targetType: targetInfo.type,
+        rawTarget: target || null,
+        senderJid: senderJid || null,
         name: data.pushName || data.name || undefined,
         message: text,
         fromMe: key.fromMe === true || key.fromMe === 'true',

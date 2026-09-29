@@ -97,6 +97,20 @@ async function getLead(id) {
     return data;
 }
 
+async function getLatestLeadBySenderJid(senderJid) {
+    if (!senderJid) return null;
+    const { data, error } = await getClient()
+        .from(LEADS_TABLE)
+        .select('*')
+        .eq('sender_jid', senderJid)
+        .order('detected_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) throw new Error(`Falha ao buscar lead por sender_jid no Supabase: ${error.message}`);
+    return data;
+}
+
 async function getCursor(groupId) {
     const { data, error } = await getClient()
         .from(CURSORS_TABLE)
@@ -128,6 +142,7 @@ module.exports = {
     updateStatus,
     listLeads,
     getLead,
+    getLatestLeadBySenderJid,
     getCursor,
     saveCursor
 };

@@ -4,6 +4,7 @@ const LeadAgent = require('../leadAgent');
 const WhatsAppIntegration = require('../whatsappIntegration');
 const { WhatsAppMonitoringStore, normalizeInboundEvent, normalizeTarget } = require('../whatsappMonitoringStore');
 const leadRadar = require('../leadRadar');
+const leadRadarStore = require('../leadRadarStore');
 const { correlations: alertCorrelations, getAlertSettings } = require('../alerts');
 const remoteOperator = require('../remoteOperator');
 
@@ -40,8 +41,32 @@ function eventSummary(event) {
         eventId: event.eventId,
         target: event.target,
         targetType: event.targetType,
+        senderPhone: event.senderPhone || null,
+        senderJid: event.senderJid || null,
         timestamp: event.timestamp || null
     };
+}
+
+async function getInboundConversationTarget(event) {
+    const candidates = [
+        event.targetType === 'group' && event.senderPhone ? event.senderPhone : null,
+        event.target
+    ].filter(Boolean);
+
+    for (const target of [...new Set(candidates)]) {
+        const conversation = await agent.getConversation(target);
+        if (conversation) return { target, conversation };
+    }
+
+    if (event.senderJid) {
+        const radarLead = await leadRadarStore.getLatestLeadBySenderJid(event.senderJid);
+        if (radarLead) {
+            const conversation = await agent.getConversationByRadarLeadId(radarLead.id);
+            if (conversation) return { target: conversation.leadId, conversation };
+        }
+    }
+
+    return { target: candidates[0] || null, conversation: null };
 }
 
 router.get('/monitoring/status', requireMonitoringAdmin, async (req, res) => {
@@ -119,12 +144,18 @@ router.post('/inbound', async (req, res) => {
             leadRadar.processIncomingGroupMessage({
                 groupId: event.target,
                 senderName: event.name,
+                senderJid: event.senderJid,
                 message: event.message,
                 messageId: event.eventId
             }).catch(error => console.error('Erro no radar de leads (evento em tempo real):', error.message));
         }
 
-        if (!await monitoringStore.isAllowed(event.target)) {
+        const conversationTarget = await getInboundConversationTarget(event);
+        const targetAllowed = await monitoringStore.isAllowed(event.target);
+        const participantAllowed = conversationTarget.target && conversationTarget.target !== event.target
+            ? await monitoringStore.isAllowed(conversationTarget.target)
+            : false;
+        if (!targetAllowed && !participantAllowed && !conversationTarget.conversation) {
             return res.json({ success: true, ignored: true, reason: 'not_allowed', event: eventSummary(event) });
         }
         if (await monitoringStore.hasReceipt(event.eventId)) {
@@ -133,8 +164,12 @@ router.post('/inbound', async (req, res) => {
 
         await monitoringStore.recordReceipt(event.eventId);
         const result = await agent.handleInboundMessage({
-            phone: event.targetType === 'phone' ? event.target : undefined,
-            groupId: event.targetType === 'group' ? event.target : undefined,
+            phone: conversationTarget.target && !String(conversationTarget.target).endsWith('@g.us')
+                ? conversationTarget.target
+                : (event.targetType === 'phone' ? event.target : event.senderPhone),
+            groupId: conversationTarget.target && String(conversationTarget.target).endsWith('@g.us')
+                ? conversationTarget.target
+                : (event.targetType === 'group' && !event.senderPhone ? event.target : undefined),
             name: event.name,
             message: event.message,
             send: false
