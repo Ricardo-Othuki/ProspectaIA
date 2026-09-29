@@ -17,10 +17,12 @@ const GoogleCalendarIntegration = require('../googleCalendarIntegration');
 const { FlowSimulationRunner } = require('../flowSimulationRunner');
 const agentRoutes = require('../routes/agentRoutes');
 const leadRadarRoutes = require('../routes/leadRadarRoutes');
+const telegramRoutes = require('../routes/telegramRoutes');
 const leadRadar = require('../leadRadar');
 const knowledgeSources = require('../knowledgeSources');
 const telegramPoller = require('../telegramPoller');
 const events = require('../events');
+const eventsStore = require('../eventsStore');
 
 const app = express();
 const PORT = process.env.WEB_PORT || 3000;
@@ -116,9 +118,10 @@ app.get('/api/events', (req, res) => {
     });
 });
 
-function getSettingsReadiness() {
+async function getSettingsReadiness() {
     const whatsapp = new WhatsAppIntegration();
     const calendar = new GoogleCalendarIntegration();
+    const settings = await settingsStore.get();
     return {
         ai: { configured: isConfigured(), model: getModel() },
         whatsapp: {
@@ -138,17 +141,22 @@ function getSettingsReadiness() {
             model: process.env.LEAD_RADAR_MODEL || 'gemini-2.5-flash-lite',
             pollMinutes: Number(process.env.LEAD_RADAR_POLL_MINUTES || 0),
             autoScanRunning: leadRadar.isAutoScanRunning(),
-            alerts: settingsStore.get().alerts,
-            ownerWhatsappConfigured: Boolean(settingsStore.get().alerts.whatsappGroupId || process.env.TARGET_GROUP_ID || process.env.OWNER_NOTIFY_PHONE),
-            telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN && (settingsStore.get().alerts.telegramChatId || process.env.TELEGRAM_CHAT_ID))
+            alerts: settings.alerts,
+            ownerWhatsappConfigured: Boolean(settings.alerts.whatsappGroupId || process.env.TARGET_GROUP_ID || process.env.OWNER_NOTIFY_PHONE),
+            telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN && (settings.alerts.telegramChatId || process.env.TELEGRAM_CHAT_ID))
         },
         calendar: { configured: fs.existsSync(calendar.credentialsPath), calendarId: calendar.calendarId },
         system: { node: process.version, uptime: Math.round(process.uptime()) }
     };
 }
 
-app.get('/api/settings', (req, res) => {
-    res.json({ success: true, settings: settingsStore.get(), profile: getProfile(), readiness: getSettingsReadiness(), knowledgeExtra: knowledgeSources.get() });
+app.get('/api/settings', async (req, res) => {
+    try {
+        const [settings, readiness] = await Promise.all([settingsStore.get(), getSettingsReadiness()]);
+        res.json({ success: true, settings, profile: getProfile(), readiness, knowledgeExtra: knowledgeSources.get() });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.put('/api/settings/knowledge', (req, res) => {
@@ -162,10 +170,10 @@ app.put('/api/settings/knowledge', (req, res) => {
     }
 });
 
-app.put('/api/settings', (req, res) => {
+app.put('/api/settings', async (req, res) => {
     try {
-        const settings = settingsStore.update(req.body?.settings || {});
-        res.json({ success: true, settings, readiness: getSettingsReadiness() });
+        const settings = await settingsStore.update(req.body?.settings || {});
+        res.json({ success: true, settings, readiness: await getSettingsReadiness() });
     } catch (error) {
         res.status(400).json({ error: error.message, fields: error.fields || {} });
     }
@@ -198,9 +206,30 @@ app.post('/api/simulations/run', (req, res) => {
 
 // Lead Agent API Routes
 app.use('/api/agent', agentRoutes);
-app.use('/api/lead-radar', leadRadarRoutes);
 
-// Function to broadcast SSE message to all connected clients
+async function runCronScan(req, res) {
+    const secret = process.env.CRON_SECRET;
+    const auth = req.get('authorization') || '';
+    if (secret && auth !== `Bearer ${secret}`) {
+        return res.status(401).json({ error: 'Não autorizado' });
+    }
+    try {
+        const summary = await leadRadar.scanGroups({ sinceDays: 7 });
+        res.json({ success: true, summary });
+    } catch (error) {
+        console.error('Error running cron scan:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+}
+
+app.all('/api/cron/scan', runCronScan);
+app.use('/api/lead-radar', leadRadarRoutes);
+app.use('/api/telegram', telegramRoutes);
+
+// Function to broadcast SSE message to all connected clients (funciona local;
+// em produção serverless, cada evento também é gravado no Supabase — ver
+// eventsStore — e o painel lê por polling em /api/events/poll, que funciona
+// igual em qualquer ambiente).
 function broadcastSSE(data) {
     const message = `data: ${JSON.stringify(data)}\n\n`;
     sseConnections.forEach(res => {
@@ -210,11 +239,24 @@ function broadcastSSE(data) {
             sseConnections.delete(res);
         }
     });
+    eventsStore.logEvent(data.type, data).catch(() => {});
 }
 
 // Repassa notificações do backend (rascunho pronto, lead do radar detectado)
-// para o painel em tempo real, via o mesmo canal SSE já existente.
+// para o painel, via SSE (local) e via log persistido (polling, funciona em
+// qualquer ambiente).
 events.on('notification', payload => broadcastSSE({ type: 'notification', ...payload }));
+
+// Painel consulta eventos novos por polling — funciona igual local e em
+// função serverless, sem depender de conexão mantida aberta.
+app.get('/api/events/poll', async (req, res) => {
+    try {
+        const events = await eventsStore.listSince(req.query.since || null);
+        res.json({ success: true, events });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // API Routes
 
@@ -698,38 +740,44 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const server = app.listen(PORT, () => {
-    console.log(`🚀 Business Leads AI Web Dashboard running on http://localhost:${PORT}`);
-    console.log(`📊 Dashboard: http://localhost:${PORT}`);
-    console.log(`🔌 API: http://localhost:${PORT}/api`);
-    console.log(`❤️  Health: http://localhost:${PORT}/api/health`);
-    leadRadar.startPoller();
-    telegramPoller.start();
-});
-
-// Graceful shutdown
-function gracefulShutdown(signal) {
-    console.log(`\n⏹️  ${signal} received. Shutting down gracefully...`);
-    
-    // Close SSE connections
-    sseConnections.forEach(res => {
-        try { res.end(); } catch (e) { /* ignore */ }
-    });
-    sseConnections.clear();
-
-    server.close(() => {
-        console.log('✅ Server closed');
-        process.exit(0);
+// Só sobe um processo de longa duração (listen, pollers locais, shutdown
+// gracioso) quando este arquivo é executado diretamente (`npm run web`).
+// Em produção serverless (Vercel), api/index.js só importa `app` — a Vercel
+// cuida de receber requisições, sem chamar .listen() nem manter processo.
+if (require.main === module) {
+    const server = app.listen(PORT, () => {
+        console.log(`🚀 Business Leads AI Web Dashboard running on http://localhost:${PORT}`);
+        console.log(`📊 Dashboard: http://localhost:${PORT}`);
+        console.log(`🔌 API: http://localhost:${PORT}/api`);
+        console.log(`❤️  Health: http://localhost:${PORT}/api/health`);
+        Promise.resolve(leadRadar.startPoller()).catch(error => console.error('Falha ao iniciar poller do radar:', error.message));
+        telegramPoller.start();
     });
 
-    // Force shutdown after 10 seconds
-    setTimeout(() => {
-        console.error('❌ Forced shutdown after timeout');
-        process.exit(1);
-    }, 10000);
+    // Graceful shutdown
+    function gracefulShutdown(signal) {
+        console.log(`\n⏹️  ${signal} received. Shutting down gracefully...`);
+
+        // Close SSE connections
+        sseConnections.forEach(res => {
+            try { res.end(); } catch (e) { /* ignore */ }
+        });
+        sseConnections.clear();
+
+        server.close(() => {
+            console.log('✅ Server closed');
+            process.exit(0);
+        });
+
+        // Force shutdown after 10 seconds
+        setTimeout(() => {
+            console.error('❌ Forced shutdown after timeout');
+            process.exit(1);
+        }, 10000);
+    }
+
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 }
-
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 module.exports = app;

@@ -40,7 +40,8 @@ class TelegramIntegration {
     /**
      * Long polling: busca atualizações novas a partir de `offset`, esperando
      * até `timeoutSeconds` por algo novo antes de responder vazio. Usado
-     * para escutar respostas sem precisar de um endereço público.
+     * para escutar respostas sem precisar de um endereço público (só local —
+     * incompatível com o webhook, que deve estar desativado antes de usar).
      */
     async getUpdates(offset, timeoutSeconds = 25) {
         if (!this.botToken) return [];
@@ -54,6 +55,27 @@ class TelegramIntegration {
         } catch (error) {
             console.error('Erro ao buscar atualizações do Telegram:', error.message);
             return [];
+        }
+    }
+
+    /**
+     * Registra (ou remove, se `url` for vazio) o webhook do bot — usado em
+     * produção (serverless) no lugar do long polling, que não funciona sem
+     * processo contínuo. Chamar uma vez depois do deploy.
+     */
+    async setWebhook(url) {
+        if (!this.botToken) return { success: false, error: 'Telegram não configurado (TELEGRAM_BOT_TOKEN ausente)' };
+
+        try {
+            const response = await axios.post(
+                `https://api.telegram.org/bot${this.botToken}/setWebhook`,
+                { url: url || '' },
+                { timeout: 15000 }
+            );
+            return { success: Boolean(response.data?.ok), description: response.data?.description };
+        } catch (error) {
+            console.error('Erro ao registrar webhook do Telegram:', error.message);
+            return { success: false, error: error.message };
         }
     }
 }

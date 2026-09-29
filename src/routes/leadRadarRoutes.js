@@ -23,13 +23,14 @@ const checkConfig = (req, res, next) => {
 router.get('/groups', async (req, res) => {
     try {
         const groups = await leadRadar.whatsapp.getGroups();
+        const excludedIds = new Set(await leadRadar.groupsStore.listExcluded());
         res.json({
             success: true,
             groups: groups.map(g => ({
                 id: g.id,
                 name: g.subject,
                 size: g.size,
-                excluded: leadRadar.groupsStore.isExcluded(g.id)
+                excluded: excludedIds.has(g.id)
             }))
         });
     } catch (error) {
@@ -38,14 +39,22 @@ router.get('/groups', async (req, res) => {
     }
 });
 
-router.post('/groups/:groupId/exclude', (req, res) => {
-    leadRadar.groupsStore.exclude(req.params.groupId);
-    res.json({ success: true, excludedGroupIds: leadRadar.groupsStore.listExcluded() });
+router.post('/groups/:groupId/exclude', async (req, res) => {
+    try {
+        await leadRadar.groupsStore.exclude(req.params.groupId);
+        res.json({ success: true, excludedGroupIds: await leadRadar.groupsStore.listExcluded() });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
-router.delete('/groups/:groupId/exclude', (req, res) => {
-    leadRadar.groupsStore.include(req.params.groupId);
-    res.json({ success: true, excludedGroupIds: leadRadar.groupsStore.listExcluded() });
+router.delete('/groups/:groupId/exclude', async (req, res) => {
+    try {
+        await leadRadar.groupsStore.include(req.params.groupId);
+        res.json({ success: true, excludedGroupIds: await leadRadar.groupsStore.listExcluded() });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 router.post('/scan', checkSupabase, async (req, res) => {
@@ -59,13 +68,32 @@ router.post('/scan', checkSupabase, async (req, res) => {
     }
 });
 
-router.post('/auto-scan', (req, res) => {
+router.post('/auto-scan', async (req, res) => {
     try {
-        const running = leadRadar.setAutoScanEnabled(Boolean(req.body?.enabled));
+        const running = await leadRadar.setAutoScanEnabled(Boolean(req.body?.enabled));
         res.json({ success: true, running, pollMinutes: leadRadar._pollMinutes || 0 });
     } catch (error) {
         console.error('Error toggling radar auto-scan:', error.message);
         res.status(400).json({ error: error.message });
+    }
+});
+
+// A Vercel chama cron jobs via GET, com o header Authorization: Bearer
+// <CRON_SECRET> automaticamente quando CRON_SECRET está configurado nas
+// variáveis de ambiente do projeto. GET também permite testar com curl
+// direto; aceito POST também, para chamar manualmente sem se importar com o método.
+router.all('/cron/scan', async (req, res) => {
+    const secret = process.env.CRON_SECRET;
+    const auth = req.get('authorization') || '';
+    if (secret && auth !== `Bearer ${secret}`) {
+        return res.status(401).json({ error: 'Não autorizado' });
+    }
+    try {
+        const summary = await leadRadar.scanGroups({ sinceDays: 7 });
+        res.json({ success: true, summary });
+    } catch (error) {
+        console.error('Error running cron scan:', error.message);
+        res.status(500).json({ error: error.message });
     }
 });
 

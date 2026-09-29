@@ -160,7 +160,7 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
     async processIncomingGroupMessage({ groupId, groupName, senderName, senderJid, message, messageId, fromMe }) {
         console.log(`📡 Radar (tempo real) recebeu mensagem de "${groupName}" (${groupId}): "${(message || '').slice(0, 80)}"`);
         if (fromMe || !message) return null;
-        if (this.groupsStore.isExcluded(groupId)) { console.log('   → grupo excluído da varredura'); return null; }
+        if (await this.groupsStore.isExcluded(groupId)) { console.log('   → grupo excluído da varredura'); return null; }
         if (!this.matchesPrefilter(message)) { console.log('   → não passou no prefiltro (sem palavra-chave de serviço)'); return null; }
         console.log('   → passou no prefiltro, classificando com IA...');
 
@@ -190,7 +190,7 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
 
         for (const group of groups) {
             const groupId = group.id;
-            if (!groupId || this.groupsStore.isExcluded(groupId)) {
+            if (!groupId || await this.groupsStore.isExcluded(groupId)) {
                 summary.groupsSkipped += 1;
                 continue;
             }
@@ -248,14 +248,19 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
      * default ligado) — o operador pode pausar/retomar em tempo de execução
      * sem reiniciar o servidor via setAutoScanEnabled().
      */
-    startPoller() {
+    async startPoller() {
+        if (process.env.VERCEL) {
+            console.log('ℹ️  Radar de leads: rodando em função serverless, use a rota de cron (/api/cron/scan) em vez do setInterval local.');
+            return;
+        }
+
         this._pollMinutes = Number(process.env.LEAD_RADAR_POLL_MINUTES || 0);
         if (!this._pollMinutes || this._pollMinutes <= 0) {
             console.log('ℹ️  Radar de leads: LEAD_RADAR_POLL_MINUTES não configurado, varredura automática desativada.');
             return;
         }
 
-        const saved = new SettingsStore().get().radar || {};
+        const saved = (await new SettingsStore().get()).radar || {};
         const enabled = saved.autoScanEnabled !== false; // default ligado
         if (enabled) this._startInterval();
         else console.log('⏸️  Radar de leads: varredura automática desativada pelo operador.');
@@ -285,8 +290,8 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
      * servidor. A preferência fica salva (data/dashboard-settings.json) e
      * sobrevive a um restart.
      */
-    setAutoScanEnabled(enabled) {
-        new SettingsStore().update({ radar: { autoScanEnabled: Boolean(enabled) } });
+    async setAutoScanEnabled(enabled) {
+        await new SettingsStore().update({ radar: { autoScanEnabled: Boolean(enabled) } });
         if (enabled) this._startInterval();
         else this._stopInterval();
         return this.isAutoScanRunning();

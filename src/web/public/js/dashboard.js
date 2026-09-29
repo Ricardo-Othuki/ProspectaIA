@@ -11,7 +11,6 @@ class Dashboard {
         this.currentCampaign = null;
         this.leadsTable = null;
         this.progressManager = null;
-        this.eventSource = null;
         this.alerts = [];
 
         this.init();
@@ -370,22 +369,27 @@ class Dashboard {
     }
 
     // ─── Real-Time Updates (SSE) ────────────────────────────
+    // Atualizações "em tempo quase real" por polling em vez de SSE — SSE não
+    // funciona de forma confiável em produção serverless (cada invocação é
+    // isolada), então usamos um único caminho (polling) que funciona igual
+    // local e em produção.
     setupRealTimeUpdates() {
+        this._lastEventTimestamp = null;
+        this._pollRealTimeUpdates();
+    }
+
+    async _pollRealTimeUpdates() {
         try {
-            this.eventSource = new EventSource('/api/events');
-
-            this.eventSource.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    this.handleSSEEvent(data);
-                } catch (e) { /* ignore parse errors */ }
-            };
-
-            this.eventSource.onerror = () => {
-                setTimeout(() => this.setupRealTimeUpdates(), 5000);
-            };
+            const qs = this._lastEventTimestamp ? `?since=${encodeURIComponent(this._lastEventTimestamp)}` : '';
+            const result = await api.request(`/events/poll${qs}`);
+            (result.events || []).forEach(evt => {
+                this._lastEventTimestamp = evt.created_at;
+                this.handleSSEEvent(evt.payload || { type: evt.type });
+            });
         } catch (e) {
-            console.log('SSE not available');
+            // silencioso — tenta de novo no próximo ciclo
+        } finally {
+            setTimeout(() => this._pollRealTimeUpdates(), 8000);
         }
     }
 

@@ -15,36 +15,38 @@ const whatsapp = new WhatsAppIntegration();
 const telegram = new TelegramIntegration();
 const correlations = new AlertCorrelationStore();
 
-function getAlertSettings() {
-    const saved = (new SettingsStore().get().alerts) || {};
+async function getAlertSettings() {
+    const settings = await new SettingsStore().get();
+    const saved = settings.alerts || {};
     return {
         whatsappGroupId: saved.whatsappGroupId || process.env.TARGET_GROUP_ID || '',
-        telegramChatId: saved.telegramChatId || process.env.TELEGRAM_CHAT_ID || ''
+        telegramChatId: saved.telegramChatId || process.env.TELEGRAM_CHAT_ID || '',
+        ownerWhatsappNumber: saved.ownerWhatsappNumber || ''
     };
 }
 
 /**
  * Envia o alerta pelos canais configurados. `context`, quando informado
- * ({leadId, kind: 'price'|'close'}), grava a correlação da mensagem enviada
- * em cada canal, para que uma resposta (reply) a ela seja aplicada ao lead
- * certo (ver alertCorrelationStore.js).
+ * ({leadId, kind: 'price'|'close'|'draft'}), grava a correlação da mensagem
+ * enviada em cada canal, para que uma resposta (reply) a ela seja aplicada
+ * ao lead certo (ver alertCorrelationStore.js).
  */
 async function sendOwnerAlert(text, context) {
-    const { whatsappGroupId, telegramChatId } = getAlertSettings();
+    const { whatsappGroupId, telegramChatId } = await getAlertSettings();
     const ownerPhone = process.env.OWNER_NOTIFY_PHONE;
 
     if (whatsappGroupId || ownerPhone) {
         try {
             const target = whatsappGroupId || ownerPhone;
             const result = await whatsapp.sendMessage(target, text, { isGroup: Boolean(whatsappGroupId) });
-            if (context && result?.messageId) correlations.save('whatsapp', result.messageId, context);
+            if (context && result?.messageId) await correlations.save('whatsapp', result.messageId, context);
         } catch (error) {
             console.error('Falha ao alertar via WhatsApp:', error.message);
         }
     }
     if (telegram.isConfigured(telegramChatId)) {
         const result = await telegram.sendMessage(text, telegramChatId);
-        if (context && result?.messageId) correlations.save('telegram', result.messageId, context);
+        if (context && result?.messageId) await correlations.save('telegram', result.messageId, context);
     }
 }
 
