@@ -113,8 +113,31 @@ router.post('/inbound', async (req, res) => {
         if (!event.target || !event.message) {
             return res.status(400).json({ error: 'Missing valid target or message content' });
         }
+        const conversationTarget = await getInboundConversationTarget(event);
+
         if (event.fromMe) {
-            return res.json({ success: true, ignored: true, reason: 'from_me', event: eventSummary(event) });
+            if (await monitoringStore.hasReceipt(event.eventId)) {
+                return res.json({ success: true, ignored: true, reason: 'duplicate', event: eventSummary(event) });
+            }
+
+            if (!conversationTarget.conversation) {
+                return res.json({ success: true, ignored: true, reason: 'from_me_no_conversation', event: eventSummary(event) });
+            }
+
+            await monitoringStore.recordReceipt(event.eventId);
+            const conversation = await agent.recordHumanOutboundMessage(conversationTarget.target, event.message, {
+                senderName: 'WhatsApp Web',
+                externalMessageId: event.eventId
+            });
+
+            return res.json({
+                success: true,
+                event: eventSummary(event),
+                synced: true,
+                direction: 'outbound',
+                humanControlled: true,
+                status: conversation.status
+            });
         }
 
         // Canal de operação remota por WhatsApp: só aceita comando/resposta
@@ -150,7 +173,6 @@ router.post('/inbound', async (req, res) => {
             }).catch(error => console.error('Erro no radar de leads (evento em tempo real):', error.message));
         }
 
-        const conversationTarget = await getInboundConversationTarget(event);
         const targetAllowed = await monitoringStore.isAllowed(event.target);
         const participantAllowed = conversationTarget.target && conversationTarget.target !== event.target
             ? await monitoringStore.isAllowed(conversationTarget.target)

@@ -1137,6 +1137,43 @@ Responda APENAS com um JSON:
     }
 
     /**
+     * Sincroniza uma mensagem enviada fora do painel (ex: WhatsApp Web)
+     * para manter o histórico do painel alinhado sem acionar IA.
+     */
+    async recordHumanOutboundMessage(leadId, message, { senderName = 'WhatsApp Web', externalMessageId } = {}) {
+        const conversation = await conversationStore.getConversation(leadId);
+        if (!conversation) return null;
+
+        const content = (message || '').toString().trim();
+        if (!content) throw new Error('Mensagem vazia');
+
+        const alreadyRecorded = (conversation.messages || []).some(item => {
+            if (externalMessageId && item.externalMessageId === externalMessageId) return true;
+            if (item.type !== 'outbound' || item.source !== 'human') return false;
+            const sameContent = (item.content || '').trim() === content;
+            const itemTime = item.timestamp ? new Date(item.timestamp).getTime() : 0;
+            return sameContent && itemTime && Date.now() - itemTime < 2 * 60 * 1000;
+        });
+
+        if (!alreadyRecorded) {
+            conversation.messages.push({
+                type: 'outbound',
+                source: 'human',
+                senderName,
+                content,
+                timestamp: new Date(),
+                externalMessageId
+            });
+        }
+
+        conversation.humanControlled = true;
+        conversation.status = conversation.status === 'completed' ? 'in_progress' : 'human_takeover';
+        conversation.lastActivity = new Date();
+        await conversationStore.saveConversation(conversation);
+        return conversation;
+    }
+
+    /**
      * Obtém status de todas as conversas
      */
     async getConversationsStatus() {
