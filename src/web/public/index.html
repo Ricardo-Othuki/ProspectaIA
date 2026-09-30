@@ -850,6 +850,21 @@
     <!-- Notifications Container -->
     <div id="notifications"></div>
 
+    <!-- Radar Lead Action Modal -->
+    <div class="modal" id="radarLeadActionModal">
+      <div class="modal-content" style="max-width: 640px">
+        <div class="modal-header">
+          <h3>Lead rastreado</h3>
+          <button class="modal-close" onclick="hideModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="radarLeadModalBody"></div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="hideModal()">Agora não</button>
+          <button class="btn btn-primary" id="radarLeadModalPrimary" onclick="dashboard.confirmRadarLeadContact()">Autorizar contato</button>
+        </div>
+      </div>
+    </div>
+
     <!-- New Campaign Modal -->
     <div class="modal" id="newCampaignModal">
       <div class="modal-content">

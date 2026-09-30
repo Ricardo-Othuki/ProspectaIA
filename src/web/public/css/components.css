@@ -1116,3 +1116,43 @@
 .pending-message-card.auth-pending .pending-title {
     color: #a5b4fc;
 }
+
+
+/* Clickable alerts and Radar lead action modal */
+.alert-item {
+    width: 100%;
+    text-align: left;
+    color: inherit;
+    font-family: inherit;
+}
+.alert-item:hover,
+.alert-item:focus-visible {
+    background: var(--bg-hover);
+    outline: none;
+}
+.radar-lead-card {
+    cursor: pointer;
+}
+.radar-lead-card:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+.radar-modal-lead h4 {
+    margin: var(--space-md) 0 var(--space-sm);
+    color: var(--text-primary);
+    font-size: 1.15rem;
+}
+.radar-modal-lead p {
+    margin: var(--space-sm) 0;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+.radar-modal-lead blockquote {
+    margin: var(--space-md) 0;
+    padding: var(--space-md);
+    border-left: 3px solid var(--primary);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    line-height: 1.55;
+}

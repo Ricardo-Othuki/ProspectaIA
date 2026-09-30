@@ -12,6 +12,8 @@ class Dashboard {
         this.leadsTable = null;
         this.progressManager = null;
         this.alerts = [];
+        this.currentRadarLead = null;
+        this.currentRadarLeads = [];
 
         this.init();
     }
@@ -393,6 +395,10 @@ class Dashboard {
                 this._lastEventTimestamp = evt.created_at;
                 this.handleSSEEvent(evt.payload || { type: evt.type });
             });
+            if (result.events && result.events.length) {
+                if (this.currentSection === 'conversations') this.loadConversations();
+                if (this.currentSection === 'lead-radar') this.loadRadarLeads();
+            }
         } catch (e) {
             // silencioso — tenta de novo no próximo ciclo
         } finally {
@@ -426,6 +432,8 @@ class Dashboard {
                 break;
             case 'notification':
                 this.pushAlert(data);
+                if (data.kind === 'draft_ready') this.loadConversations();
+                if (data.kind === 'radar_lead') this.loadRadarLeads();
                 break;
         }
     }
@@ -470,6 +478,7 @@ class Dashboard {
             id: Date.now() + Math.random(),
             kind: data.kind,
             priority: data.priority,
+            leadId: data.leadId || null,
             title: titles[data.kind] || 'Notificação',
             message: messages[data.kind] || '',
             timestamp: new Date(),
@@ -507,13 +516,31 @@ class Dashboard {
         if (list) {
             list.innerHTML = this.alerts.length
                 ? this.alerts.map(a => `
-                    <div class="alert-item ${a.priority ? `priority-${a.priority}` : ''} kind-${a.kind}">
+                    <button class="alert-item ${a.priority ? `priority-${a.priority}` : ''} kind-${a.kind}" onclick="dashboard.openAlert('${a.id}')">
                         <span class="alert-item-title">${api.safeString(a.title)}</span>
                         <span>${api.safeString(a.message)}</span>
                         <span class="alert-item-meta">${api.formatDateSafe(a.timestamp)}</span>
-                    </div>
+                    </button>
                 `).join('')
                 : '<p class="empty-message">Nenhuma notificação ainda.</p>';
+        }
+    }
+
+    async openAlert(alertId) {
+        const alert = this.alerts.find(item => String(item.id) === String(alertId));
+        if (!alert) return;
+        alert.read = true;
+        this.renderAlertBell();
+        document.getElementById('alertBellDropdown')?.classList.remove('open');
+
+        if (alert.kind === 'draft_ready') {
+            this.showSection('conversations');
+            if (alert.leadId) await this.selectConversation(alert.leadId);
+            return;
+        }
+
+        if (alert.kind === 'radar_lead') {
+            this.showSection('lead-radar');
         }
     }
 
@@ -1084,6 +1111,7 @@ class Dashboard {
         if (!list) return;
 
         if (!leads.length) {
+            this.currentRadarLeads = [];
             list.innerHTML = `
                 <div class="card" style="text-align:center;padding:2rem">
                     <p class="empty-title">Nenhum lead encontrado no período/filtro</p>
@@ -1092,8 +1120,9 @@ class Dashboard {
             return;
         }
 
+        this.currentRadarLeads = leads;
         list.innerHTML = leads.map(lead => `
-            <div class="radar-lead-card priority-${lead.priority}">
+            <div class="radar-lead-card priority-${lead.priority}" role="button" tabindex="0" onclick="dashboard.openRadarLeadModal(${lead.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();dashboard.openRadarLeadModal(${lead.id})}">
                 <div class="radar-lead-header">
                     <span class="priority-badge priority-${lead.priority}">${this.priorityLabel(lead.priority)}</span>
                     <span class="radar-lead-group">${api.safeString(lead.group_name || this.groupNameFor(lead.group_id))}</span>
@@ -1106,13 +1135,47 @@ class Dashboard {
                 <div class="radar-lead-footer">
                     <span class="status-badge">${this.radarStatusLabel(lead.status)}</span>
                     <div class="radar-lead-actions">
-                        ${lead.status === 'novo' ? `<button class="btn btn-primary btn-sm" onclick="dashboard.contactRadarLead(${lead.id})">💬 Contatar este lead</button>` : ''}
-                        ${lead.status !== 'contatado' ? `<button class="btn btn-secondary btn-sm" onclick="dashboard.setRadarStatus(${lead.id}, 'contatado')">✅ Marcar contatado</button>` : ''}
-                        ${lead.status !== 'dispensado' ? `<button class="btn btn-secondary btn-sm" onclick="dashboard.setRadarStatus(${lead.id}, 'dispensado')">🚫 Dispensar</button>` : ''}
+                        ${lead.status === 'novo' ? `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();dashboard.openRadarLeadModal(${lead.id})">💬 Contatar este lead</button>` : ''}
+                        ${lead.status !== 'contatado' ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();dashboard.setRadarStatus(${lead.id}, 'contatado')">✅ Marcar contatado</button>` : ''}
+                        ${lead.status !== 'dispensado' ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();dashboard.setRadarStatus(${lead.id}, 'dispensado')">🚫 Dispensar</button>` : ''}
                     </div>
                 </div>
             </div>
         `).join('');
+    }
+
+    openRadarLeadModal(id) {
+        const lead = (this.currentRadarLeads || []).find(item => String(item.id) === String(id));
+        if (!lead) return;
+        this.currentRadarLead = lead;
+        const body = document.getElementById('radarLeadModalBody');
+        const primary = document.getElementById('radarLeadModalPrimary');
+        if (body) {
+            body.innerHTML = `
+                <div class="radar-modal-lead">
+                    <div class="radar-lead-header">
+                        <span class="priority-badge priority-${lead.priority}">${this.priorityLabel(lead.priority)}</span>
+                        <span class="status-badge">${this.radarStatusLabel(lead.status)}</span>
+                    </div>
+                    <h4>${api.safeString(lead.sender_name, 'Desconhecido')}</h4>
+                    <p><strong>Grupo:</strong> ${api.safeString(lead.group_name || this.groupNameFor(lead.group_id))}</p>
+                    <p><strong>Precisa de:</strong> ${api.safeString(lead.need_summary || lead.service_match, '-')}</p>
+                    ${lead.relevance_reason ? `<p>${api.safeString(lead.relevance_reason)}</p>` : ''}
+                    <blockquote>${api.safeString(lead.message_text)}</blockquote>
+                    <p class="settings-help">Ao autorizar contato, o sistema resolve o número do participante, cria a conversa e deixa a primeira mensagem como rascunho para aprovação.</p>
+                </div>`;
+        }
+        if (primary) {
+            primary.disabled = lead.status !== 'novo';
+            primary.textContent = lead.status === 'novo' ? 'Autorizar contato' : 'Contato já iniciado';
+        }
+        showModal('radarLeadActionModal');
+    }
+
+    async confirmRadarLeadContact() {
+        if (!this.currentRadarLead) return;
+        await this.contactRadarLead(this.currentRadarLead.id);
+        hideModal();
     }
 
     async contactRadarLead(id) {
