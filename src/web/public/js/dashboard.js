@@ -960,10 +960,12 @@ class Dashboard {
             <div class="pending-message-card">
                 <div class="pending-title">⏳ Aguardando sua aprovação</div>
                 ${c.pendingMessage.sendError ? `<div class="pending-error">Falha no último envio: ${api.safeString(c.pendingMessage.sendError)}</div>` : ''}
-                <textarea id="pendingMessageInput" class="chat-input" rows="4">${api.safeString(c.pendingMessage.content, '')}</textarea>
+                <button class="pending-draft-preview" onclick="dashboard.openPendingDraftModal('${c.leadId}')">
+                    <span>${api.safeString(c.pendingMessage.content, '')}</span>
+                </button>
                 <div class="pending-actions">
                     <button class="btn btn-primary btn-sm" onclick="dashboard.approvePending('${c.leadId}', false)">✅ Aprovar envio</button>
-                    <button class="btn btn-secondary btn-sm" onclick="dashboard.approvePending('${c.leadId}', true)">✏️ Alterar e enviar</button>
+                    <button class="btn btn-secondary btn-sm" onclick="dashboard.openPendingDraftModal('${c.leadId}')">✏️ Editar ampliado</button>
                     <button class="btn btn-danger btn-sm" onclick="dashboard.discardPending('${c.leadId}')">❌ Não enviar</button>
                 </div>
             </div>` : '';
@@ -1011,9 +1013,44 @@ class Dashboard {
         } catch (error) { api.handleError(error, 'devolver conversa'); }
     }
 
-    async approvePending(leadId, useEdited) {
+    async openPendingDraftModal(leadId) {
+        try {
+            const conversation = await api.getConversation(leadId);
+            if (!conversation || !conversation.pendingMessage) {
+                showNotification('Rascunho indisponível', 'Não há rascunho pendente para esta conversa.', 'warning');
+                this.selectConversation(leadId);
+                return;
+            }
+            this.currentPendingDraftLeadId = leadId;
+            const title = document.getElementById('pendingDraftModalTitle');
+            const input = document.getElementById('pendingDraftModalInput');
+            const error = document.getElementById('pendingDraftModalError');
+            if (title) title.textContent = `Editar rascunho para ${conversation.leadName || leadId}`;
+            if (input) {
+                input.value = conversation.pendingMessage.content || '';
+                setTimeout(() => input.focus(), 50);
+            }
+            if (error) {
+                error.textContent = conversation.pendingMessage.sendError ? `Falha no último envio: ${conversation.pendingMessage.sendError}` : '';
+                error.style.display = conversation.pendingMessage.sendError ? 'block' : 'none';
+            }
+            showModal('pendingDraftModal');
+        } catch (error) {
+            api.handleError(error, 'abrir rascunho');
+        }
+    }
+
+    async approvePendingFromModal() {
+        const leadId = this.currentPendingDraftLeadId;
+        const input = document.getElementById('pendingDraftModalInput');
+        if (!leadId || !input) return;
+        await this.approvePending(leadId, true, input.value.trim());
+        hideModal();
+    }
+
+    async approvePending(leadId, useEdited, editedText) {
         const input = document.getElementById('pendingMessageInput');
-        const editedContent = useEdited && input ? input.value.trim() : undefined;
+        const editedContent = useEdited ? (editedText !== undefined ? editedText : (input ? input.value.trim() : undefined)) : undefined;
         try {
             await api.approveMessage(leadId, editedContent ? { editedContent } : {});
             showNotification('Mensagem enviada', 'O rascunho foi aprovado e enviado.', 'success');

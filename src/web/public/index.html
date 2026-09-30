@@ -850,6 +850,24 @@
     <!-- Notifications Container -->
     <div id="notifications"></div>
 
+    <!-- Pending Draft Modal -->
+    <div class="modal" id="pendingDraftModal">
+      <div class="modal-content modal-content-wide">
+        <div class="modal-header">
+          <h3 id="pendingDraftModalTitle">Editar rascunho</h3>
+          <button class="modal-close" onclick="hideModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="pendingDraftModalError" class="pending-error" style="display:none"></div>
+          <textarea id="pendingDraftModalInput" class="pending-draft-editor" rows="14"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="hideModal()">Voltar</button>
+          <button class="btn btn-primary" onclick="dashboard.approvePendingFromModal()">Enviar texto editado</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Radar Lead Action Modal -->
     <div class="modal" id="radarLeadActionModal">
       <div class="modal-content" style="max-width: 640px">
