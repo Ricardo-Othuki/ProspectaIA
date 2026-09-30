@@ -1237,6 +1237,7 @@ class Dashboard {
         const button = document.getElementById('radarScanButton');
         const lastScan = document.getElementById('radarLastScan');
         if (button) { button.disabled = true; button.textContent = '🔎 Escaneando...'; }
+        this.showRadarScanOverlay();
         try {
             const result = await api.scanRadar(7);
             const s = result.summary;
@@ -1247,6 +1248,25 @@ class Dashboard {
             api.handleError(error, 'escanear grupos');
         } finally {
             if (button) { button.disabled = false; button.textContent = '🔎 Escanear agora'; }
+            this.hideRadarScanOverlay();
+        }
+    }
+
+    showRadarScanOverlay(message = 'Buscando novas oportunidades nos grupos do WhatsApp...') {
+        const overlay = document.getElementById('radarScanOverlay');
+        const text = document.getElementById('radarScanOverlayText');
+        if (text) text.textContent = message;
+        if (overlay) {
+            overlay.classList.add('active');
+            overlay.setAttribute('aria-hidden', 'false');
+        }
+    }
+
+    hideRadarScanOverlay() {
+        const overlay = document.getElementById('radarScanOverlay');
+        if (overlay) {
+            overlay.classList.remove('active');
+            overlay.setAttribute('aria-hidden', 'true');
         }
     }
 
