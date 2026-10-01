@@ -14,6 +14,7 @@ class Dashboard {
         this.alerts = [];
         this.currentRadarLead = null;
         this.currentRadarLeads = [];
+        this.radarSettings = { autoScanEnabled: true, activeNicheId: '', niches: [] };
 
         this.init();
     }
@@ -137,6 +138,12 @@ class Dashboard {
         if (profileSettingsForm) profileSettingsForm.addEventListener('submit', event => this.saveProfileSettings(event));
         const knowledgeSettingsForm = document.getElementById('knowledgeSettingsForm');
         if (knowledgeSettingsForm) knowledgeSettingsForm.addEventListener('submit', event => this.saveKnowledgeExtra(event));
+        const radarNicheForm = document.getElementById('radarNicheForm');
+        if (radarNicheForm) radarNicheForm.addEventListener('submit', event => this.saveRadarNiche(event));
+        const generateRadarNicheButton = document.getElementById('generateRadarNicheButton');
+        if (generateRadarNicheButton) generateRadarNicheButton.addEventListener('click', () => this.generateRadarNiche());
+        const newRadarNicheButton = document.getElementById('newRadarNicheButton');
+        if (newRadarNicheButton) newRadarNicheButton.addEventListener('click', () => this.clearRadarNicheForm());
         document.querySelectorAll('.settings-subnav-item').forEach(item => {
             item.addEventListener('click', () => this.showSettingsTab(item.dataset.settingsTab));
         });
@@ -193,6 +200,8 @@ class Dashboard {
             document.getElementById('settingModel').value = settings.generation.model;
             document.getElementById('settingMaxContent').value = settings.generation.maxContentGeneration;
             document.getElementById('settingMultiTouch').checked = settings.generation.multiTouch;
+            this.radarSettings = settings.radar || { autoScanEnabled: true, activeNicheId: '', niches: [] };
+            this.renderRadarNiches();
             document.getElementById('profileName').value = data.profile.business?.name || '';
             document.getElementById('profileType').value = data.profile.business?.type || '';
             document.getElementById('profilePhone').value = data.profile.business?.phone || '';
@@ -270,6 +279,150 @@ class Dashboard {
             this.showSettingsFeedback('Base de conhecimento extra salva.');
         } catch (error) {
             this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    splitLines(value) {
+        return String(value || '').split(/\r?\n|,/).map(item => item.trim()).filter(Boolean);
+    }
+
+    joinLines(value) {
+        return Array.isArray(value) ? value.join('\n') : '';
+    }
+
+    slugify(value) {
+        return String(value || 'nicho')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '') || `nicho-${Date.now()}`;
+    }
+
+    getRadarNicheFromForm() {
+        const existingId = document.getElementById('radarNicheId')?.value.trim();
+        const name = document.getElementById('radarNicheName')?.value.trim() || '';
+        return {
+            id: existingId || this.slugify(name),
+            name,
+            description: document.getElementById('radarNicheDescription')?.value.trim() || '',
+            offer: document.getElementById('radarNicheOffer')?.value.trim() || '',
+            keywords: this.splitLines(document.getElementById('radarNicheKeywords')?.value),
+            negativeKeywords: this.splitLines(document.getElementById('radarNicheNegativeKeywords')?.value),
+            qualificationSignals: this.splitLines(document.getElementById('radarNicheSignals')?.value),
+            complianceRules: this.splitLines(document.getElementById('radarNicheCompliance')?.value),
+            initialMessageTemplate: document.getElementById('radarNicheMessage')?.value.trim() || '',
+            active: document.getElementById('radarNicheActive')?.checked || false
+        };
+    }
+
+    fillRadarNicheForm(niche = {}) {
+        document.getElementById('radarNicheId').value = niche.id || '';
+        document.getElementById('radarNicheName').value = niche.name || '';
+        document.getElementById('radarNicheDescription').value = niche.description || '';
+        document.getElementById('radarNicheOffer').value = niche.offer || '';
+        document.getElementById('radarNicheKeywords').value = this.joinLines(niche.keywords);
+        document.getElementById('radarNicheNegativeKeywords').value = this.joinLines(niche.negativeKeywords);
+        document.getElementById('radarNicheSignals').value = this.joinLines(niche.qualificationSignals);
+        document.getElementById('radarNicheCompliance').value = this.joinLines(niche.complianceRules);
+        document.getElementById('radarNicheMessage').value = niche.initialMessageTemplate || '';
+        document.getElementById('radarNicheActive').checked = Boolean(niche.active || (niche.id && niche.id === this.radarSettings.activeNicheId));
+    }
+
+    clearRadarNicheForm() {
+        this.fillRadarNicheForm({});
+        document.getElementById('radarNicheActive').checked = !(this.radarSettings.niches || []).length;
+    }
+
+    renderRadarNiches() {
+        const list = document.getElementById('radarNichesList');
+        if (!list) return;
+        const niches = this.radarSettings.niches || [];
+        list.innerHTML = niches.length ? niches.map(niche => `
+            <div class="radar-niche-item">
+                <div>
+                    <strong>${api.safeString(niche.name)}</strong>
+                    <small>${niche.id === this.radarSettings.activeNicheId ? 'Ativo' : 'Inativo'} · ${api.safeString((niche.keywords || []).slice(0, 4).join(', '))}</small>
+                </div>
+                <div class="radar-niche-actions">
+                    <button class="btn btn-secondary btn-sm" type="button" data-edit-niche="${api.safeString(niche.id)}">Editar</button>
+                    <button class="btn btn-secondary btn-sm" type="button" data-activate-niche="${api.safeString(niche.id)}">Ativar</button>
+                    <button class="btn btn-danger btn-sm" type="button" data-delete-niche="${api.safeString(niche.id)}">Remover</button>
+                </div>
+            </div>
+        `).join('') : '<p class="settings-help">Nenhum nicho configurado ainda.</p>';
+        list.querySelectorAll('[data-edit-niche]').forEach(button => button.addEventListener('click', () => {
+            const niche = niches.find(item => item.id === button.dataset.editNiche);
+            if (niche) this.fillRadarNicheForm(niche);
+        }));
+        list.querySelectorAll('[data-activate-niche]').forEach(button => button.addEventListener('click', () => this.activateRadarNiche(button.dataset.activateNiche)));
+        list.querySelectorAll('[data-delete-niche]').forEach(button => button.addEventListener('click', () => this.deleteRadarNiche(button.dataset.deleteNiche)));
+    }
+
+    async saveRadarNiche(event) {
+        event.preventDefault();
+        try {
+            const niche = this.getRadarNicheFromForm();
+            if (!niche.name || !niche.keywords.length) throw new Error('Informe nome e ao menos uma palavra-chave.');
+            const niches = [...(this.radarSettings.niches || []).filter(item => item.id !== niche.id), niche];
+            const activeNicheId = niche.active ? niche.id : (this.radarSettings.activeNicheId || niches[0]?.id || '');
+            const radar = { ...this.radarSettings, activeNicheId, niches: niches.map(item => ({ ...item, active: item.id === activeNicheId })) };
+            const result = await api.saveSettings({ radar });
+            this.radarSettings = result.settings.radar;
+            this.renderRadarNiches();
+            this.showSettingsFeedback('Nicho do radar salvo.');
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    async activateRadarNiche(id) {
+        try {
+            const radar = {
+                ...this.radarSettings,
+                activeNicheId: id,
+                niches: (this.radarSettings.niches || []).map(niche => ({ ...niche, active: niche.id === id }))
+            };
+            const result = await api.saveSettings({ radar });
+            this.radarSettings = result.settings.radar;
+            this.renderRadarNiches();
+            this.showSettingsFeedback('Nicho ativo atualizado.');
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    async deleteRadarNiche(id) {
+        try {
+            const niches = (this.radarSettings.niches || []).filter(niche => niche.id !== id);
+            const activeNicheId = this.radarSettings.activeNicheId === id ? (niches[0]?.id || '') : this.radarSettings.activeNicheId;
+            const radar = { ...this.radarSettings, activeNicheId, niches: niches.map(niche => ({ ...niche, active: niche.id === activeNicheId })) };
+            const result = await api.saveSettings({ radar });
+            this.radarSettings = result.settings.radar;
+            this.renderRadarNiches();
+            this.clearRadarNicheForm();
+            this.showSettingsFeedback('Nicho removido.');
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        }
+    }
+
+    async generateRadarNiche() {
+        const button = document.getElementById('generateRadarNicheButton');
+        try {
+            if (button) { button.disabled = true; button.textContent = 'Gerando...'; }
+            const payload = {
+                topic: document.getElementById('radarNicheGenerateTopic')?.value.trim() || document.getElementById('radarNicheName')?.value.trim() || '',
+                product: document.getElementById('radarNicheOffer')?.value.trim() || '',
+                audience: document.getElementById('radarNicheAudience')?.value.trim() || ''
+            };
+            const result = await api.generateRadarNiche(payload);
+            this.fillRadarNicheForm({ ...result.niche, active: !(this.radarSettings.niches || []).length });
+            this.showSettingsFeedback('Sugestão gerada. Revise e salve para ativar no radar.');
+        } catch (error) {
+            this.showSettingsFeedback(error.message, true);
+        } finally {
+            if (button) { button.disabled = false; button.textContent = 'Gerar com IA'; }
         }
     }
 

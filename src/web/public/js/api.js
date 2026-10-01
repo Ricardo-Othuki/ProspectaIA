@@ -57,6 +57,7 @@ class API {
     // ─── Agent / Conversations ──────────────────────────────
     async getSettings() { return this.request('/settings'); }
     async saveSettings(settings) { return this.request('/settings', { method: 'PUT', body: JSON.stringify({ settings }) }); }
+    async generateRadarNiche(payload) { return this.request('/settings/radar-niches/generate', { method: 'POST', body: JSON.stringify(payload) }); }
     async saveProfile(profile) { return this.request('/settings/profile', { method: 'PUT', body: JSON.stringify({ profile }) }); }
     async saveKnowledgeExtra(text) { return this.request('/settings/knowledge', { method: 'PUT', body: JSON.stringify({ text }) }); }
     async getSimulationScenarios() { return this.request('/simulations/scenarios'); }

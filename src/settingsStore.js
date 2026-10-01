@@ -17,7 +17,7 @@ const DEFAULTS = {
     generation: { model: '', maxContentGeneration: 50, multiTouch: false },
     dashboard: { refreshSeconds: 6 },
     alerts: { whatsappGroupId: '', whatsappGroupLabel: '', telegramChatId: '', ownerWhatsappNumber: '' },
-    radar: { autoScanEnabled: true }
+    radar: { autoScanEnabled: true, activeNicheId: '', niches: [] }
 };
 
 const ALLOWED_STYLES = new Set(['balanced', 'professional', 'casual', 'aggressive']);
@@ -63,6 +63,56 @@ function merge(base, update) {
     return result;
 }
 
+function cleanText(value, max = 500) {
+    return String(value || '').trim().slice(0, max);
+}
+
+function cleanList(value, limit = 30, itemMax = 120) {
+    const items = Array.isArray(value) ? value : String(value || '').split(/\r?\n|,/);
+    return Array.from(new Set(items.map(item => cleanText(item, itemMax)).filter(Boolean))).slice(0, limit);
+}
+
+function slugify(value) {
+    const slug = cleanText(value, 80)
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    return slug || `nicho-${Date.now()}`;
+}
+
+function normalizeRadarNiche(niche = {}) {
+    const name = cleanText(niche.name, 80);
+    const id = cleanText(niche.id, 80) || slugify(name);
+    return {
+        id,
+        name,
+        description: cleanText(niche.description, 600),
+        offer: cleanText(niche.offer, 600),
+        keywords: cleanList(niche.keywords, 60),
+        negativeKeywords: cleanList(niche.negativeKeywords, 60),
+        qualificationSignals: cleanList(niche.qualificationSignals, 30, 180),
+        complianceRules: cleanList(niche.complianceRules, 20, 220),
+        initialMessageTemplate: cleanText(niche.initialMessageTemplate, 1000),
+        active: Boolean(niche.active)
+    };
+}
+
+function normalizeRadarSettings(radar = {}) {
+    const niches = Array.isArray(radar.niches)
+        ? radar.niches.map(normalizeRadarNiche).filter(niche => niche.id && niche.name).slice(0, 20)
+        : [];
+    const activeFromFlag = niches.find(niche => niche.active)?.id || '';
+    const activeNicheId = cleanText(radar.activeNicheId || activeFromFlag, 80);
+    return {
+        ...radar,
+        autoScanEnabled: typeof radar.autoScanEnabled === 'boolean' ? radar.autoScanEnabled : true,
+        activeNicheId: niches.some(niche => niche.id === activeNicheId) ? activeNicheId : activeFromFlag,
+        niches: niches.map(niche => ({ ...niche, active: niche.id === (activeNicheId || activeFromFlag) }))
+    };
+}
+
 function validate(next) {
     const errors = {};
     if (!ALLOWED_STYLES.has(next.campaign.style)) errors['campaign.style'] = 'Estilo de campanha inválido';
@@ -78,7 +128,13 @@ function validate(next) {
     for (const key of ['whatsappGroupId', 'whatsappGroupLabel', 'telegramChatId', 'ownerWhatsappNumber']) {
         if (typeof next.alerts[key] !== 'string' || next.alerts[key].length > 120) errors[`alerts.${key}`] = 'Valor inválido';
     }
+    next.radar = normalizeRadarSettings(next.radar);
     if (typeof next.radar.autoScanEnabled !== 'boolean') errors['radar.autoScanEnabled'] = 'Valor inválido';
+    if (!Array.isArray(next.radar.niches)) errors['radar.niches'] = 'Nichos inválidos';
+    next.radar.niches.forEach((niche, index) => {
+        if (!niche.name) errors[`radar.niches.${index}.name`] = 'Nome do nicho é obrigatório';
+        if (!niche.keywords.length) errors[`radar.niches.${index}.keywords`] = 'Informe ao menos uma palavra-chave';
+    });
     return errors;
 }
 
@@ -145,4 +201,4 @@ class SettingsStore {
     }
 }
 
-module.exports = { SettingsStore, DEFAULTS };
+module.exports = { SettingsStore, DEFAULTS, normalizeRadarNiche, normalizeRadarSettings };

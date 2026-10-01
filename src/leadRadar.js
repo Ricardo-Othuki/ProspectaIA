@@ -49,7 +49,20 @@ class LeadRadar {
         this._pollerStarted = false;
     }
 
-    buildKeywordFilter() {
+    async getActiveNiche() {
+        try {
+            const radar = (await new SettingsStore().get()).radar || {};
+            return (radar.niches || []).find(niche => niche.id === radar.activeNicheId) || null;
+        } catch (error) {
+            console.warn('Não foi possível carregar nicho ativo do radar:', error.message);
+            return null;
+        }
+    }
+
+    buildKeywordFilter(activeNiche = null) {
+        if (activeNiche?.keywords?.length) {
+            return Array.from(new Set(activeNiche.keywords.map(normalize).filter(Boolean)));
+        }
         if (this._keywordsCache) return this._keywordsCache;
         const biz = (getProfile().business) || {};
         const raw = [...(biz.services || []), ...(biz.valuePropositions || []), ...GENERIC_KEYWORDS];
@@ -57,13 +70,15 @@ class LeadRadar {
         return this._keywordsCache;
     }
 
-    matchesPrefilter(text) {
+    matchesPrefilter(text, activeNiche = null) {
         const normalized = normalize(text);
         if (!normalized) return false;
-        return this.buildKeywordFilter().some(keyword => normalized.includes(keyword));
+        const negativeKeywords = (activeNiche?.negativeKeywords || []).map(normalize).filter(Boolean);
+        if (negativeKeywords.some(keyword => normalized.includes(keyword))) return false;
+        return this.buildKeywordFilter(activeNiche).some(keyword => normalized.includes(keyword));
     }
 
-    async classifyBatch(candidates) {
+    async classifyBatch(candidates, activeNiche = null) {
         if (!candidates.length) return [];
 
         const client = getClient();
@@ -74,8 +89,18 @@ class LeadRadar {
         const services = (biz.services && biz.services.length)
             ? biz.services.join(', ')
             : 'sites, automação com IA, agentes de IA, tráfego pago, SEO, SaaS sob medida';
+        const nicheContext = activeNiche ? `
 
-        const prompt = `Você filtra mensagens de grupos de WhatsApp para achar pedidos reais de serviços que a ${biz.name || 'Othuki'} vende: ${services}.
+NICHO ATIVO DO RADAR:
+- Nome: ${activeNiche.name}
+- Descrição: ${activeNiche.description || '-'}
+- Oferta permitida: ${activeNiche.offer || '-'}
+- Sinais de qualificação: ${(activeNiche.qualificationSignals || []).join('; ') || '-'}
+- Regras de compliance: ${(activeNiche.complianceRules || []).join('; ') || '-'}
+
+Use o nicho ativo como prioridade. Não classifique como lead mensagens que peçam algo fora da oferta permitida ou contrário às regras de compliance.` : '';
+
+        const prompt = `Você filtra mensagens de grupos de WhatsApp para achar pedidos reais de serviços que a ${biz.name || 'Othuki'} vende: ${services}.${nicheContext}
 
 Para cada mensagem abaixo (array JSON com "index" e "text"), diga se é um PEDIDO REAL de algum desses serviços (não conta menção casual, propaganda de terceiros, nem oferta de quem vende o mesmo serviço).
 
@@ -161,10 +186,12 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
         console.log(`📡 Radar (tempo real) recebeu mensagem de "${groupName}" (${groupId}): "${(message || '').slice(0, 80)}"`);
         if (fromMe || !message) return null;
         if (await this.groupsStore.isExcluded(groupId)) { console.log('   → grupo excluído da varredura'); return null; }
-        if (!this.matchesPrefilter(message)) { console.log('   → não passou no prefiltro (sem palavra-chave de serviço)'); return null; }
+
+        const activeNiche = await this.getActiveNiche();
+        if (!this.matchesPrefilter(message, activeNiche)) { console.log('   → não passou no prefiltro (sem palavra-chave do nicho/serviço ou com termo negativo)'); return null; }
         console.log('   → passou no prefiltro, classificando com IA...');
 
-        const [classification] = await this.classifyBatch([{ text: message }]);
+        const [classification] = await this.classifyBatch([{ text: message }], activeNiche);
         console.log('   → classificação:', JSON.stringify(classification));
         return this.persistIfLead({
             groupId,
@@ -187,6 +214,7 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
         const cutoff = Date.now() - Math.min(sinceDays, 7) * 24 * 60 * 60 * 1000;
         const groups = await this.whatsapp.getGroups();
         const summary = { groupsScanned: 0, groupsSkipped: 0, candidates: 0, leadsFound: 0 };
+        const activeNiche = await this.getActiveNiche();
 
         for (const group of groups) {
             const groupId = group.id;
@@ -214,7 +242,7 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
                 if (ts > newestTimestamp) newestTimestamp = ts;
                 if (ts <= effectiveCutoff || record.key?.fromMe) continue;
                 const text = extractText(record);
-                if (text && this.matchesPrefilter(text)) candidates.push({ record, text });
+                if (text && this.matchesPrefilter(text, activeNiche)) candidates.push({ record, text });
             }
 
             summary.candidates += candidates.length;
@@ -222,7 +250,7 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
 
             for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
                 const batch = candidates.slice(i, i + BATCH_SIZE);
-                const classifications = await this.classifyBatch(batch.map(b => ({ text: b.text })));
+                const classifications = await this.classifyBatch(batch.map(b => ({ text: b.text })), activeNiche);
                 for (let j = 0; j < batch.length; j += 1) {
                     const lead = await this.persistIfLead({
                         groupId,

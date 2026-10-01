@@ -106,13 +106,19 @@
 }
 
 .settings-card input,
-.settings-card select {
+.settings-card select,
+.settings-card textarea {
     width: 100%;
     padding: 0.65rem 0.75rem;
     color: var(--text-primary);
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
+}
+
+.settings-card textarea {
+    resize: vertical;
+    min-height: 88px;
 }
 
 .settings-card .checkbox-label {
@@ -123,6 +129,38 @@
 
 .settings-card .checkbox-label input {
     width: auto;
+}
+
+.settings-actions,
+.radar-niche-actions {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+}
+
+.radar-niches-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+}
+
+.radar-niche-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding: var(--space-sm);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-muted);
+}
+
+.radar-niche-item small {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    margin-top: 2px;
 }
 
 .settings-feedback {

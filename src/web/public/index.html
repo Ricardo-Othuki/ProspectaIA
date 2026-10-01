@@ -671,6 +671,10 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                 Base de conhecimento
               </button>
+              <button type="button" class="settings-subnav-item" data-settings-tab="nichos">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M2 12h2"/><path d="M20 12h2"/></svg>
+                Nichos do Radar
+              </button>
               <button type="button" class="settings-subnav-item" data-settings-tab="integracoes">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
                 Integrações
@@ -720,6 +724,31 @@
                   <p class="settings-card-desc">Cole aqui conteúdo do site (othuki.com.br) ou de outros links relevantes — entra automaticamente no contexto do agente de vendas.</p>
                   <label>Texto<textarea id="knowledgeExtraText" maxlength="8000" rows="10" placeholder="Cole aqui o conteúdo relevante..."></textarea></label>
                   <button class="btn btn-primary" type="submit">Salvar base de conhecimento</button>
+                </form>
+              </div>
+
+              <div class="settings-tab-panel" data-settings-panel="nichos">
+                <form class="card settings-card settings-card-wide" id="radarNicheForm">
+                  <h3>Nichos do Radar</h3>
+                  <p class="settings-card-desc">Configure o que o radar deve procurar nos grupos. A geração por IA preenche uma sugestão para revisão antes de salvar.</p>
+                  <input id="radarNicheId" type="hidden" />
+                  <label>Gerar a partir de nicho, tema ou produto<input id="radarNicheGenerateTopic" maxlength="160" placeholder="ex: IPTV legal, streaming licenciado, internet fibra" /></label>
+                  <label>Público-alvo<input id="radarNicheAudience" maxlength="160" placeholder="ex: moradores buscando alternativa legal de TV" /></label>
+                  <button class="btn btn-secondary" id="generateRadarNicheButton" type="button">Gerar com IA</button>
+                  <label>Nome<input id="radarNicheName" maxlength="80" /></label>
+                  <label>Descrição<textarea id="radarNicheDescription" maxlength="600" rows="3"></textarea></label>
+                  <label>Oferta permitida<textarea id="radarNicheOffer" maxlength="600" rows="3"></textarea></label>
+                  <label>Palavras-chave<textarea id="radarNicheKeywords" maxlength="4000" rows="6" placeholder="Uma por linha"></textarea></label>
+                  <label>Palavras negativas<textarea id="radarNicheNegativeKeywords" maxlength="4000" rows="5" placeholder="Uma por linha"></textarea></label>
+                  <label>Sinais de qualificação<textarea id="radarNicheSignals" maxlength="4000" rows="4" placeholder="Uma por linha"></textarea></label>
+                  <label>Regras de compliance<textarea id="radarNicheCompliance" maxlength="4000" rows="4" placeholder="Uma por linha"></textarea></label>
+                  <label>Mensagem inicial sugerida<textarea id="radarNicheMessage" maxlength="1000" rows="4"></textarea></label>
+                  <label class="checkbox-label"><input id="radarNicheActive" type="checkbox" /> Usar como nicho ativo do radar</label>
+                  <div class="settings-actions">
+                    <button class="btn btn-primary" type="submit">Salvar nicho</button>
+                    <button class="btn btn-secondary" id="newRadarNicheButton" type="button">Novo nicho</button>
+                  </div>
+                  <div id="radarNichesList" class="radar-niches-list"></div>
                 </form>
               </div>
 
