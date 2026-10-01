@@ -139,15 +139,35 @@ class WhatsAppIntegration {
             throw new Error('URL do webhook inválida');
         }
 
-        await axios.post(
-            `${this.evolutionUrl}/webhook/set/${this.evolutionInstance}`,
-            {
-                url: webhookUrl,
-                webhook_by_events: false,
-                events: ['MESSAGES_UPSERT']
-            },
-            { headers: { 'Content-Type': 'application/json', apikey: this.evolutionApiKey }, timeout: 30000 }
-        );
+        try {
+            await axios.post(
+                `${this.evolutionUrl}/webhook/set/${this.evolutionInstance}`,
+                {
+                    webhook: {
+                        enabled: true,
+                        url: webhookUrl,
+                        webhook_by_events: false,
+                        events: ['MESSAGES_UPSERT']
+                    }
+                },
+                { headers: { 'Content-Type': 'application/json', apikey: this.evolutionApiKey }, timeout: 30000 }
+            );
+        } catch (error) {
+            const requiresWebhookObject = error.response?.data?.response?.message
+                ?.flat?.()
+                ?.some?.(message => String(message).includes('requires property "webhook"'));
+            if (requiresWebhookObject) throw error;
+
+            await axios.post(
+                `${this.evolutionUrl}/webhook/set/${this.evolutionInstance}`,
+                {
+                    url: webhookUrl,
+                    webhook_by_events: false,
+                    events: ['MESSAGES_UPSERT']
+                },
+                { headers: { 'Content-Type': 'application/json', apikey: this.evolutionApiKey }, timeout: 30000 }
+            );
+        }
 
         return { registered: true, instance: this.evolutionInstance };
     }
