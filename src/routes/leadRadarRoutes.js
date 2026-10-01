@@ -2,9 +2,23 @@ const express = require('express');
 const leadRadar = require('../leadRadar');
 const leadRadarStore = require('../leadRadarStore');
 const LeadAgent = require('../leadAgent');
+const { SettingsStore } = require('../settingsStore');
 
 const router = express.Router();
 const agent = new LeadAgent();
+
+function parseNicheFromLead(lead, nicheById) {
+    const serviceMatch = String(lead.service_match || '');
+    const match = serviceMatch.match(/^\[niche:([^|\]]+)\|([^\]]+)\]\s*(.*)$/);
+    if (!match) return { ...lead, niche_id: 'default', niche_name: 'Perfil principal' };
+    const niche = nicheById.get(match[1]);
+    return {
+        ...lead,
+        service_match: match[3] || lead.service_match,
+        niche_id: match[1],
+        niche_name: niche?.name || match[2]
+    };
+}
 
 const checkSupabase = (req, res, next) => {
     if (!leadRadarStore.isConfigured()) {
@@ -99,16 +113,20 @@ router.all('/cron/scan', async (req, res) => {
 
 router.get('/leads', checkSupabase, async (req, res) => {
     try {
-        const { since, priority, groupId, status } = req.query;
+        const { since, priority, groupId, status, nicheId } = req.query;
         const leads = await leadRadarStore.listLeads({
             sinceDays: since ? Number(since) : 7,
             priority: priority || undefined,
             groupId: groupId || undefined,
             status: status || undefined
         });
+        const settings = await new SettingsStore().get();
+        const nicheById = new Map((settings.radar?.niches || []).map(niche => [niche.id, niche]));
+        const enriched = leads.map(lead => parseNicheFromLead(lead, nicheById));
+        const filtered = nicheId ? enriched.filter(lead => lead.niche_id === nicheId) : enriched;
         const counts = { alta: 0, media: 0, baixa: 0 };
-        leads.forEach(l => { if (counts[l.priority] !== undefined) counts[l.priority] += 1; });
-        res.json({ success: true, total: leads.length, counts, leads });
+        filtered.forEach(l => { if (counts[l.priority] !== undefined) counts[l.priority] += 1; });
+        res.json({ success: true, total: filtered.length, counts, leads: filtered });
     } catch (error) {
         console.error('Error listing radar leads:', error.message);
         res.status(500).json({ error: error.message });
@@ -119,9 +137,12 @@ router.post('/leads/:id/contact', checkSupabase, checkConfig, async (req, res) =
     try {
         const radarLead = await leadRadarStore.getLead(req.params.id);
         if (!radarLead) return res.status(404).json({ error: 'Lead do radar não encontrado' });
+        const settings = await new SettingsStore().get();
+        const nicheById = new Map((settings.radar?.niches || []).map(niche => [niche.id, niche]));
+        const enrichedLead = parseNicheFromLead(radarLead, nicheById);
 
         const { testTarget } = req.body || {};
-        const conversation = await agent.startRadarOutreach(radarLead, { testTarget });
+        const conversation = await agent.startRadarOutreach(enrichedLead, { testTarget });
         await leadRadarStore.updateStatus(radarLead.id, 'contatado');
 
         res.json({ success: true, conversation });

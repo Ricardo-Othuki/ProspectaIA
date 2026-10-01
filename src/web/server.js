@@ -23,7 +23,7 @@ const knowledgeSources = require('../knowledgeSources');
 const telegramPoller = require('../telegramPoller');
 const events = require('../events');
 const eventsStore = require('../eventsStore');
-const { generateRadarNiche } = require('../radarNicheGenerator');
+const { generateRadarNiche, rewriteRadarNicheField } = require('../radarNicheGenerator');
 const { getAuthClient, requireDashboardAuth, setAuthCookies, clearAuthCookies } = require('../auth');
 
 const app = express();
@@ -231,6 +231,15 @@ app.post('/api/settings/radar-niches/generate', async (req, res) => {
     try {
         const niche = await generateRadarNiche(req.body || {});
         res.json({ success: true, niche });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ error: error.message });
+    }
+});
+
+app.post('/api/settings/radar-niches/rewrite-field', async (req, res) => {
+    try {
+        const result = await rewriteRadarNicheField(req.body || {});
+        res.json({ success: true, ...result });
     } catch (error) {
         res.status(error.statusCode || 500).json({ error: error.message });
     }

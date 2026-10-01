@@ -29,6 +29,17 @@ const GENERIC_KEYWORDS = [
     'whatsapp bot', 'inteligência artificial', 'inteligencia artificial'
 ];
 
+const DEFAULT_NICHE = {
+    id: 'default',
+    name: 'Perfil principal',
+    keywords: [],
+    negativeKeywords: [],
+    qualificationSignals: [],
+    complianceRules: [],
+    offer: '',
+    description: ''
+};
+
 function normalize(text) {
     return String(text || '')
         .toLowerCase()
@@ -49,13 +60,14 @@ class LeadRadar {
         this._pollerStarted = false;
     }
 
-    async getActiveNiche() {
+    async getRadarNichesForScan() {
         try {
             const radar = (await new SettingsStore().get()).radar || {};
-            return (radar.niches || []).find(niche => niche.id === radar.activeNicheId) || null;
+            const enabled = (radar.niches || []).filter(niche => niche.scanEnabled !== false);
+            return enabled.length ? enabled : [DEFAULT_NICHE];
         } catch (error) {
-            console.warn('Não foi possível carregar nicho ativo do radar:', error.message);
-            return null;
+            console.warn('Não foi possível carregar nichos do radar:', error.message);
+            return [DEFAULT_NICHE];
         }
     }
 
@@ -145,18 +157,26 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
         await sendOwnerAlert(text);
     }
 
-    async persistIfLead({ groupId, groupName, record, text, classification }) {
+    formatServiceMatch(classification, niche) {
+        const service = classification.serviceMatch || niche?.name || '';
+        if (!niche || niche.id === 'default') return service;
+        return `[niche:${niche.id}|${niche.name}] ${service}`;
+    }
+
+    async persistIfLead({ groupId, groupName, record, text, classification, niche = DEFAULT_NICHE }) {
         if (!classification || !classification.isLead) return null;
 
+        const baseMessageId = record.key?.id || `${groupId}_${record.messageTimestamp}`;
+        const messageId = niche?.id && niche.id !== 'default' ? `${baseMessageId}::${niche.id}` : baseMessageId;
         const lead = await leadRadarStore.insertLeadIfNew({
-            messageId: record.key?.id || `${groupId}_${record.messageTimestamp}`,
+            messageId,
             groupId,
             groupName,
             senderName: record.pushName,
             senderJid: record.key?.participant || record.key?.remoteJid,
             messageText: text,
             messageTimestamp: record.messageTimestamp ? record.messageTimestamp * 1000 : Date.now(),
-            serviceMatch: classification.serviceMatch,
+            serviceMatch: this.formatServiceMatch(classification, niche),
             needSummary: classification.needSummary,
             priority: VALID_PRIORITIES.has(classification.priority) ? classification.priority : 'baixa',
             relevanceReason: classification.reason
@@ -168,6 +188,7 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
                 priority: lead.priority,
                 leadName: lead.sender_name,
                 groupName: lead.group_name,
+                nicheName: niche?.name,
                 summary: lead.need_summary || lead.service_match
             });
         }
@@ -187,23 +208,30 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
         if (fromMe || !message) return null;
         if (await this.groupsStore.isExcluded(groupId)) { console.log('   → grupo excluído da varredura'); return null; }
 
-        const activeNiche = await this.getActiveNiche();
-        if (!this.matchesPrefilter(message, activeNiche)) { console.log('   → não passou no prefiltro (sem palavra-chave do nicho/serviço ou com termo negativo)'); return null; }
-        console.log('   → passou no prefiltro, classificando com IA...');
+        const niches = await this.getRadarNichesForScan();
+        const results = [];
+        for (const niche of niches) {
+            if (!this.matchesPrefilter(message, niche)) continue;
+            console.log(`   → passou no prefiltro do nicho "${niche.name}", classificando com IA...`);
 
-        const [classification] = await this.classifyBatch([{ text: message }], activeNiche);
-        console.log('   → classificação:', JSON.stringify(classification));
-        return this.persistIfLead({
-            groupId,
-            groupName,
-            record: {
-                key: { id: messageId, participant: senderJid, remoteJid: groupId },
-                pushName: senderName,
-                messageTimestamp: Math.floor(Date.now() / 1000) // evento em tempo real: "agora" é uma aproximação correta
-            },
-            text: message,
-            classification
-        });
+            const [classification] = await this.classifyBatch([{ text: message }], niche);
+            console.log('   → classificação:', JSON.stringify(classification));
+            const lead = await this.persistIfLead({
+                groupId,
+                groupName,
+                record: {
+                    key: { id: messageId, participant: senderJid, remoteJid: groupId },
+                    pushName: senderName,
+                    messageTimestamp: Math.floor(Date.now() / 1000) // evento em tempo real: "agora" é uma aproximação correta
+                },
+                text: message,
+                classification,
+                niche
+            });
+            if (lead) results.push(lead);
+        }
+        if (!results.length) console.log('   → não passou no prefiltro de nenhum nicho habilitado');
+        return results[0] || null;
     }
 
     /**
@@ -213,8 +241,9 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
     async scanGroups({ sinceDays = 7, maxPagesPerGroup = 3 } = {}) {
         const cutoff = Date.now() - Math.min(sinceDays, 7) * 24 * 60 * 60 * 1000;
         const groups = await this.whatsapp.getGroups();
-        const summary = { groupsScanned: 0, groupsSkipped: 0, candidates: 0, leadsFound: 0 };
-        const activeNiche = await this.getActiveNiche();
+        const summary = { groupsScanned: 0, groupsSkipped: 0, candidates: 0, leadsFound: 0, nichesScanned: 0 };
+        const niches = await this.getRadarNichesForScan();
+        summary.nichesScanned = niches.length;
 
         for (const group of groups) {
             const groupId = group.id;
@@ -222,10 +251,6 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
                 summary.groupsSkipped += 1;
                 continue;
             }
-
-            const cursor = await leadRadarStore.getCursor(groupId);
-            const cursorMs = cursor?.last_message_timestamp ? new Date(cursor.last_message_timestamp).getTime() : 0;
-            const effectiveCutoff = Math.max(cutoff, cursorMs);
 
             let allRecords = [];
             for (let page = 1; page <= maxPagesPerGroup; page += 1) {
@@ -235,38 +260,47 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
                 if (page >= pages) break;
             }
 
-            const candidates = [];
-            let newestTimestamp = cursorMs;
-            for (const record of allRecords) {
-                const ts = (record.messageTimestamp || 0) * 1000;
-                if (ts > newestTimestamp) newestTimestamp = ts;
-                if (ts <= effectiveCutoff || record.key?.fromMe) continue;
-                const text = extractText(record);
-                if (text && this.matchesPrefilter(text, activeNiche)) candidates.push({ record, text });
-            }
-
-            summary.candidates += candidates.length;
             summary.groupsScanned += 1;
 
-            for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
-                const batch = candidates.slice(i, i + BATCH_SIZE);
-                const classifications = await this.classifyBatch(batch.map(b => ({ text: b.text })), activeNiche);
-                for (let j = 0; j < batch.length; j += 1) {
-                    const lead = await this.persistIfLead({
-                        groupId,
-                        groupName: group.subject,
-                        record: batch[j].record,
-                        text: batch[j].text,
-                        classification: classifications[j]
-                    });
-                    if (lead) summary.leadsFound += 1;
-                }
-            }
+            for (const niche of niches) {
+                const cursorGroupId = niche.id === 'default' ? groupId : `${groupId}::${niche.id}`;
+                const cursor = await leadRadarStore.getCursor(cursorGroupId);
+                const cursorMs = cursor?.last_message_timestamp ? new Date(cursor.last_message_timestamp).getTime() : 0;
+                const effectiveCutoff = Math.max(cutoff, cursorMs);
 
-            await leadRadarStore.saveCursor(groupId, group.subject, newestTimestamp || Date.now());
+                const candidates = [];
+                let newestTimestamp = cursorMs;
+                for (const record of allRecords) {
+                    const ts = (record.messageTimestamp || 0) * 1000;
+                    if (ts > newestTimestamp) newestTimestamp = ts;
+                    if (ts <= effectiveCutoff || record.key?.fromMe) continue;
+                    const text = extractText(record);
+                    if (text && this.matchesPrefilter(text, niche)) candidates.push({ record, text });
+                }
+
+                summary.candidates += candidates.length;
+
+                for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+                    const batch = candidates.slice(i, i + BATCH_SIZE);
+                    const classifications = await this.classifyBatch(batch.map(b => ({ text: b.text })), niche);
+                    for (let j = 0; j < batch.length; j += 1) {
+                        const lead = await this.persistIfLead({
+                            groupId,
+                            groupName: group.subject,
+                            record: batch[j].record,
+                            text: batch[j].text,
+                            classification: classifications[j],
+                            niche
+                        });
+                        if (lead) summary.leadsFound += 1;
+                    }
+                }
+
+                await leadRadarStore.saveCursor(cursorGroupId, `${group.subject} / ${niche.name}`, newestTimestamp || Date.now());
+            }
         }
 
-        console.log(`📡 Radar de leads: ${summary.groupsScanned} grupos varridos, ${summary.candidates} candidatos pré-filtrados, ${summary.leadsFound} leads novos`);
+        console.log(`📡 Radar de leads: ${summary.groupsScanned} grupos varridos, ${summary.nichesScanned} nichos, ${summary.candidates} candidatos pré-filtrados, ${summary.leadsFound} leads novos`);
         return summary;
     }
 

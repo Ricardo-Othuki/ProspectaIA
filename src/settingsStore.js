@@ -95,6 +95,7 @@ function normalizeRadarNiche(niche = {}) {
         qualificationSignals: cleanList(niche.qualificationSignals, 30, 180),
         complianceRules: cleanList(niche.complianceRules, 20, 220),
         initialMessageTemplate: cleanText(niche.initialMessageTemplate, 1000),
+        scanEnabled: niche.scanEnabled !== false,
         active: Boolean(niche.active)
     };
 }

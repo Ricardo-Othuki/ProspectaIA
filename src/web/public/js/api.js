@@ -58,6 +58,7 @@ class API {
     async getSettings() { return this.request('/settings'); }
     async saveSettings(settings) { return this.request('/settings', { method: 'PUT', body: JSON.stringify({ settings }) }); }
     async generateRadarNiche(payload) { return this.request('/settings/radar-niches/generate', { method: 'POST', body: JSON.stringify(payload) }); }
+    async rewriteRadarNicheField(payload) { return this.request('/settings/radar-niches/rewrite-field', { method: 'POST', body: JSON.stringify(payload) }); }
     async saveProfile(profile) { return this.request('/settings/profile', { method: 'PUT', body: JSON.stringify({ profile }) }); }
     async saveKnowledgeExtra(text) { return this.request('/settings/knowledge', { method: 'PUT', body: JSON.stringify({ text }) }); }
     async getSimulationScenarios() { return this.request('/simulations/scenarios'); }
@@ -113,6 +114,7 @@ class API {
         if (filters.priority) params.set('priority', filters.priority);
         if (filters.groupId) params.set('groupId', filters.groupId);
         if (filters.status) params.set('status', filters.status);
+        if (filters.nicheId) params.set('nicheId', filters.nicheId);
         const qs = params.toString();
         return this.request(`/lead-radar/leads${qs ? `?${qs}` : ''}`);
     }

@@ -609,6 +609,8 @@
           </div>
           <p class="section-subtitle">Mensagens dos seus grupos de WhatsApp que parecem pedidos reais de serviços da Othuki, priorizadas por relevância.</p>
 
+          <div id="radarNicheTabs" class="radar-niche-tabs"></div>
+
           <div class="radar-filters">
             <label>Período
               <select id="radarFilterPeriod">
@@ -744,6 +746,22 @@
                   <label>Regras de compliance<textarea id="radarNicheCompliance" maxlength="4000" rows="4" placeholder="Uma por linha"></textarea></label>
                   <label>Mensagem inicial sugerida<textarea id="radarNicheMessage" maxlength="1000" rows="4"></textarea></label>
                   <label class="checkbox-label"><input id="radarNicheActive" type="checkbox" /> Usar como nicho ativo do radar</label>
+                  <label class="checkbox-label"><input id="radarNicheScanEnabled" type="checkbox" checked /> Participar do scan do radar</label>
+                  <div class="radar-field-rewrite">
+                    <label>Campo para recriar com IA
+                      <select id="radarNicheRewriteField">
+                        <option value="keywords">Palavras-chave</option>
+                        <option value="negativeKeywords">Palavras negativas</option>
+                        <option value="qualificationSignals">Sinais de qualificação</option>
+                        <option value="complianceRules">Regras de compliance</option>
+                        <option value="description">Descrição</option>
+                        <option value="offer">Oferta permitida</option>
+                        <option value="initialMessageTemplate">Mensagem inicial</option>
+                      </select>
+                    </label>
+                    <label>Regra/prompt para recriar o campo<textarea id="radarNicheRewritePrompt" maxlength="1000" rows="3" placeholder="ex: torne mais específico para interessados em streaming legal residencial"></textarea></label>
+                    <button class="btn btn-secondary" id="rewriteRadarNicheFieldButton" type="button">Recriar campo com IA</button>
+                  </div>
                   <div class="settings-actions">
                     <button class="btn btn-primary" type="submit">Salvar nicho</button>
                     <button class="btn btn-secondary" id="newRadarNicheButton" type="button">Novo nicho</button>

@@ -163,6 +163,16 @@
     margin-top: 2px;
 }
 
+.radar-field-rewrite {
+    display: grid;
+    gap: var(--space-sm);
+    margin: var(--space-md) 0;
+    padding: var(--space-sm);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-muted);
+}
+
 .settings-feedback {
     display: none;
     margin: 0 0 var(--space-md);
@@ -801,6 +811,35 @@
     gap: var(--space-md);
     margin-bottom: var(--space-lg);
 }
+
+.radar-niche-tabs {
+    display: flex;
+    gap: var(--space-sm);
+    margin: 0 0 var(--space-md);
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.radar-niche-tab {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.radar-niche-tab.active {
+    background: var(--primary-muted);
+    color: var(--primary);
+    border-color: rgba(99, 102, 241, .35);
+}
+
+.radar-niche-tab.paused {
+    opacity: .55;
+}
 .radar-filters label {
     display: flex;
     flex-direction: column;
@@ -833,6 +872,7 @@
 
 .radar-lead-header { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-sm); flex-wrap: wrap; }
 .radar-lead-group { font-weight: 600; font-size: 0.85rem; }
+.radar-lead-niche { color: var(--accent); font-size: 0.76rem; font-weight: 700; }
 .radar-lead-date { margin-left: auto; font-size: 0.72rem; color: var(--text-muted); }
 .radar-lead-sender { font-size: 0.82rem; margin-bottom: 4px; }
 .radar-lead-summary { font-size: 0.85rem; margin-bottom: 4px; }
