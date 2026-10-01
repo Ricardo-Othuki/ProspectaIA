@@ -31,5 +31,5 @@
 
 ## 5. Teste
 
-- [ ] 5.1 Rodar `POST /agent/outreach` para o lead de teste com `testTarget` apontando para o grupo de WhatsApp de teste.
+- [ ] 5.1 Rodar `POST /agent/outreach` para o lead de teste com `testTarget` apontando para o grupo de WhatsApp de teste e verificar que a mensagem aparece como rascunho sem ser enviada.
 - [ ] 5.2 Validar no painel: aprovar, descartar e alterar-e-enviar, cada um levando ao resultado esperado no grupo de WhatsApp.

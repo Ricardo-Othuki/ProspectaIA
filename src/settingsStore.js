@@ -82,6 +82,34 @@ function slugify(value) {
     return slug || `nicho-${Date.now()}`;
 }
 
+function getDefaultInitialNiche() {
+    let biz = {};
+    try {
+        const { getProfile } = require('./businessProfile');
+        biz = (getProfile().business) || {};
+    } catch (_) {}
+
+    const keywords = [
+        ...(biz.services || []),
+        ...(biz.valuePropositions || []),
+        'site', 'automação', 'agente de ia', 'chatbot', 'tráfego pago', 'landing page', 'seo', 'saas', 'whatsapp bot'
+    ];
+
+    return {
+        id: 'principal',
+        name: biz.name ? `${biz.name} - Principal` : 'Perfil Principal (Othuki)',
+        description: biz.description || 'Prospecção e varredura de serviços de tecnologia, automação e IA.',
+        offer: (biz.services && biz.services[0]) || 'Desenvolvimento e Automação com IA',
+        keywords: Array.from(new Set(keywords.map(k => String(k).trim()).filter(Boolean))).slice(0, 30),
+        negativeKeywords: ['propaganda', 'spam', 'jogos', 'aposta', 'vaga de emprego', 'trabalho em casa'],
+        qualificationSignals: ['preciso de site', 'orcamento', 'quanto custa', 'alguem faz', 'indicação'],
+        complianceRules: ['respeitar regras do grupo', 'sem spam direto'],
+        initialMessageTemplate: 'Olá! Vi sua mensagem sobre soluções de tecnologia e IA. Como podemos ajudar?',
+        scanEnabled: true,
+        active: true
+    };
+}
+
 function normalizeRadarNiche(niche = {}) {
     const name = cleanText(niche.name, 80);
     const id = cleanText(niche.id, 80) || slugify(name);
@@ -101,11 +129,14 @@ function normalizeRadarNiche(niche = {}) {
 }
 
 function normalizeRadarSettings(radar = {}) {
-    const niches = Array.isArray(radar.niches)
+    let niches = Array.isArray(radar.niches)
         ? radar.niches.map(normalizeRadarNiche).filter(niche => niche.id && niche.name).slice(0, 20)
         : [];
-    const activeFromFlag = niches.find(niche => niche.active)?.id || '';
-    const activeNicheId = cleanText(radar.activeNicheId || activeFromFlag, 80);
+    if (niches.length === 0) {
+        niches = [normalizeRadarNiche(getDefaultInitialNiche())];
+    }
+    const activeFromFlag = niches.find(niche => niche.active)?.id || niches[0]?.id || '';
+    const activeNicheId = cleanText(radar.activeNicheId || activeFromFlag, 80) || activeFromFlag;
     return {
         ...radar,
         autoScanEnabled: typeof radar.autoScanEnabled === 'boolean' ? radar.autoScanEnabled : true,
