@@ -164,13 +164,13 @@ router.post('/inbound', async (req, res) => {
         // Radar de leads: roda para QUALQUER grupo não excluído, independente
         // da allowlist do fluxo de vendas abaixo (são pipelines independentes).
         if (event.targetType === 'group') {
-            leadRadar.processIncomingGroupMessage({
+            await leadRadar.processIncomingGroupMessage({
                 groupId: event.target,
                 senderName: event.name,
                 senderJid: event.senderJid,
                 message: event.message,
                 messageId: event.eventId
-            }).catch(error => console.error('Erro no radar de leads (evento em tempo real):', error.message));
+            });
         }
 
         const targetAllowed = await monitoringStore.isAllowed(event.target);

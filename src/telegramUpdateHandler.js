@@ -20,7 +20,7 @@ async function handleTelegramUpdate(update, telegram) {
     // partir de agora (sem histórico retroativo).
     if (message.chat?.type === 'group' || message.chat?.type === 'supergroup') {
         const groupId = `telegram:${message.chat.id}`;
-        leadRadar.processIncomingGroupMessage({
+        await leadRadar.processIncomingGroupMessage({
             groupId,
             groupName: message.chat.title,
             senderName: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ') || message.from?.username,
@@ -28,7 +28,7 @@ async function handleTelegramUpdate(update, telegram) {
             message: text,
             messageId: `telegram:${message.chat.id}:${message.message_id}`,
             fromMe: false
-        }).catch(error => console.error('Erro no radar de leads (Telegram):', error.message));
+        });
         return;
     }
 

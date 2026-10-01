@@ -7,15 +7,16 @@ const telegram = new TelegramIntegration();
 
 /**
  * Webhook do Telegram (produção/serverless — a alternativa ao long polling
- * local, que não funciona sem processo contínuo). Responde rápido (a
- * Telegram exige isso) e processa o update em seguida.
+ * local, que não funciona sem processo contínuo). Em serverless, o update
+ * precisa ser processado antes da resposta para evitar freeze da função.
  */
 router.post('/webhook', async (req, res) => {
-    res.status(200).json({ ok: true });
     try {
         await handleTelegramUpdate(req.body, telegram);
+        res.status(200).json({ ok: true });
     } catch (error) {
         console.error('Erro ao processar webhook do Telegram:', error.message);
+        res.status(200).json({ ok: true });
     }
 });
 
