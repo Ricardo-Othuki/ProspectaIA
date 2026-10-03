@@ -48,17 +48,14 @@ function eventSummary(event) {
 }
 
 async function getInboundConversationTarget(event) {
-    const candidates = [
-        event.targetType === 'group' && event.senderPhone ? event.senderPhone : null,
-        event.target
-    ].filter(Boolean);
+    const candidates = [event.target].filter(Boolean);
 
     for (const target of [...new Set(candidates)]) {
         const conversation = await agent.getConversation(target);
         if (conversation) return { target, conversation };
     }
 
-    if (event.senderJid) {
+    if (event.targetType !== 'group' && event.senderJid) {
         const radarLead = await leadRadarStore.getLatestLeadBySenderJid(event.senderJid);
         if (radarLead) {
             const conversation = await agent.getConversationByRadarLeadId(radarLead.id);
@@ -67,6 +64,15 @@ async function getInboundConversationTarget(event) {
     }
 
     return { target: candidates[0] || null, conversation: null };
+}
+
+function isGroupConversationTarget(target) {
+    return String(target || '').toLowerCase().endsWith('@g.us');
+}
+
+function shouldIgnoreGroupEventForConversation(event, conversationTarget) {
+    if (event.targetType !== 'group') return false;
+    return !(conversationTarget && conversationTarget.conversation && isGroupConversationTarget(conversationTarget.target));
 }
 
 router.get('/monitoring/status', requireMonitoringAdmin, async (req, res) => {
@@ -173,6 +179,10 @@ router.post('/inbound', async (req, res) => {
             });
         }
 
+        if (shouldIgnoreGroupEventForConversation(event, conversationTarget)) {
+            return res.json({ success: true, ignored: true, reason: 'group_message_not_private_conversation', event: eventSummary(event) });
+        }
+
         const targetAllowed = await monitoringStore.isAllowed(event.target);
         const participantAllowed = conversationTarget.target && conversationTarget.target !== event.target
             ? await monitoringStore.isAllowed(conversationTarget.target)
@@ -194,6 +204,11 @@ router.post('/inbound', async (req, res) => {
                 : (event.targetType === 'group' && !event.senderPhone ? event.target : undefined),
             name: event.name,
             message: event.message,
+            source: 'whatsapp_monitoring',
+            targetType: event.targetType,
+            rawTarget: event.rawTarget,
+            senderJid: event.senderJid,
+            externalMessageId: event.eventId,
             send: false
         });
 
@@ -349,5 +364,10 @@ router.get('/conversations/:leadId', checkConfig, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+router._private = {
+    isGroupConversationTarget,
+    shouldIgnoreGroupEventForConversation
+};
 
 module.exports = router;

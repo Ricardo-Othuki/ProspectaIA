@@ -584,12 +584,17 @@ Is this something that makes sense for you right now? 😊`;
 
         console.log(`📩 Resposta recebida de ${conversation.leadName}: ${responseMessage}`);
 
+        const inboundMetadata = options.messageMeta && typeof options.messageMeta === 'object'
+            ? Object.fromEntries(Object.entries(options.messageMeta).filter(([, value]) => value !== undefined && value !== null && value !== ''))
+            : {};
+
         // Adicionar mensagem do lead
         conversation.messages.push({
             type: 'inbound',
             content: responseMessage,
             timestamp: new Date(),
-            step: conversation.currentStep
+            step: conversation.currentStep,
+            ...inboundMetadata
         });
 
         // Se um humano assumiu o controle, apenas registra a mensagem
@@ -639,7 +644,7 @@ Is this something that makes sense for you right now? 😊`;
      * Cria a conversa se não existir e processa a mensagem do lead.
      * Retorna a resposta do agente para quem chamou enviar (ex: n8n via Evolution).
      */
-    async handleInboundMessage({ phone, groupId, name, message }) {
+    async handleInboundMessage({ phone, groupId, name, message, source, targetType, rawTarget, senderJid, externalMessageId }) {
         const target = groupId || phone;
         const isGroup = Boolean(groupId || String(target || '').toLowerCase().endsWith('@g.us'));
         const normalizedTarget = isGroup
@@ -673,7 +678,16 @@ Is this something that makes sense for you right now? 😊`;
             await conversationStore.saveConversation(conversation);
         }
 
-        const result = await this.processLeadResponse(leadId, message.toString());
+        const result = await this.processLeadResponse(leadId, message.toString(), {
+            messageMeta: {
+                source,
+                targetType,
+                rawTarget,
+                senderJid,
+                externalMessageId,
+                groupId: isGroup ? normalizedTarget : undefined
+            }
+        });
 
         return {
             leadId,

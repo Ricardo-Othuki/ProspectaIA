@@ -54,6 +54,20 @@ const {
     assert.strictEqual(evolution.senderPhone, '5511977777777');
     assert.strictEqual(evolution.senderJid, '55 11 97777-7777@s.whatsapp.net');
 
+    const { shouldIgnoreGroupEventForConversation } = require('./src/routes/agentRoutes')._private;
+    assert.strictEqual(
+        shouldIgnoreGroupEventForConversation(evolution, { target: evolution.senderPhone, conversation: { leadId: evolution.senderPhone } }),
+        true
+    );
+    assert.strictEqual(
+        shouldIgnoreGroupEventForConversation(evolution, { target: evolution.target, conversation: { leadId: evolution.target, isGroup: true } }),
+        false
+    );
+    assert.strictEqual(
+        shouldIgnoreGroupEventForConversation(direct, { target: direct.target, conversation: { leadId: direct.target } }),
+        false
+    );
+
     await store.recordReceipt('event-1');
     assert.strictEqual(await store.hasReceipt('event-1'), true);
     assert.strictEqual(await store.hasReceipt('event-2'), false);
