@@ -575,6 +575,8 @@ class Dashboard {
         if (sectionName === 'campaigns') this.loadCampaigns();
         if (sectionName === 'conversations') this.loadConversations();
         if (sectionName === 'contacted-leads') this.loadContactedLeads();
+    }
+
     async loadContactedLeads() {
         const tableBody = document.getElementById('contactedLeadsTableBody');
         if (!tableBody) return;
@@ -596,7 +598,6 @@ class Dashboard {
         } catch (error) {
             console.error('Erro ao carregar leads contatados:', error);
         }
-    }
     }
 
     // ─── Real-Time Updates (SSE) ────────────────────────────
