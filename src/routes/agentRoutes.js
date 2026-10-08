@@ -113,7 +113,16 @@ router.post('/monitoring/webhook/register', requireMonitoringAdmin, async (req, 
     }
 });
 
-router.post('/inbound', async (req, res) => {
+
+const validateWebhook = (req, res, next) => {
+    const secret = process.env.WEBHOOK_SECRET;
+    if (secret && req.get('x-webhook-secret') !== secret) {
+        return res.status(401).json({ error: 'Origem não autorizada' });
+    }
+    next();
+};
+
+router.post('/inbound', validateWebhook, async (req, res) => {
     try {
         const event = normalizeInboundEvent(req.body || {});
         if (!event.target || !event.message) {

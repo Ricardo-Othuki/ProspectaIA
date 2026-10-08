@@ -1,6 +1,8 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const rateLimit = require('express-rate-limit');
+const logger = require('../logger');
 require('dotenv').config();
 
 // Import existing components
@@ -29,9 +31,20 @@ const { getAuthClient, requireDashboardAuth, setAuthCookies, clearAuthCookies } 
 const app = express();
 const PORT = process.env.WEB_PORT || 3000;
 
+// Rate limiting for agent routes
+const agentLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, 
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: 'Muitas requisições, tente novamente mais tarde.'
+});
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+    logger.info(`${req.method} ${req.url}`);
+    next();
+});
 app.get('/index.html', (req, res) => res.redirect('/'));
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
@@ -271,7 +284,7 @@ app.post('/api/simulations/run', (req, res) => {
 });
 
 // Lead Agent API Routes
-app.use('/api/agent', agentRoutes);
+app.use('/api/agent', agentLimiter, agentRoutes);
 
 async function runCronScan(req, res) {
     const secret = process.env.CRON_SECRET;
