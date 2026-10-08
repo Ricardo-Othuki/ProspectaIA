@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 // Redirect to new CLI structure
 const { main } = require('./src/cli');
 

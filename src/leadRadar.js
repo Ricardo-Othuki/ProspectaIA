@@ -8,12 +8,10 @@
  * 4) cursor por grupo para nunca reprocessar a mesma mensagem.
  */
 
-require('dotenv').config();
 const WhatsAppIntegration = require('./whatsappIntegration');
 const { LeadRadarGroupsStore } = require('./leadRadarGroupsStore');
 const leadRadarStore = require('./leadRadarStore');
-const { getProfile } = require('./businessProfile');
-const { getClient } = require('./openaiClient');
+const { getClient, callWithRetry } = require('./openaiClient');
 const { sendOwnerAlert } = require('./alerts');
 const events = require('./events');
 const { SettingsStore } = require('./settingsStore');
@@ -58,6 +56,20 @@ class LeadRadar {
         this.groupsStore = new LeadRadarGroupsStore();
         this._keywordsCache = null;
         this._pollerStarted = false;
+        this._businessCache = null;
+    }
+
+    async _getBusiness() {
+        if (this._businessCache) return this._businessCache;
+        const settings = await new SettingsStore().get();
+        const profile = settings.profile || {};
+        const biz = profile.business || {};
+        this._businessCache = {
+            name: biz.name || 'Othuki',
+            services: biz.services || [],
+            valuePropositions: biz.valuePropositions || []
+        };
+        return this._businessCache;
     }
 
     async getRadarNichesForScan() {
@@ -76,8 +88,7 @@ class LeadRadar {
             return Array.from(new Set(activeNiche.keywords.map(normalize).filter(Boolean)));
         }
         if (this._keywordsCache) return this._keywordsCache;
-        const biz = (getProfile().business) || {};
-        const raw = [...(biz.services || []), ...(biz.valuePropositions || []), ...GENERIC_KEYWORDS];
+        const raw = [...(this._businessCache?.services || []), ...(this._businessCache?.valuePropositions || []), ...GENERIC_KEYWORDS];
         this._keywordsCache = Array.from(new Set(raw.map(normalize).filter(Boolean)));
         return this._keywordsCache;
     }
@@ -97,7 +108,7 @@ class LeadRadar {
         if (!client) return candidates.map(() => ({ isLead: false }));
 
         const model = process.env.LEAD_RADAR_MODEL || DEFAULT_MODEL;
-        const biz = (getProfile().business) || {};
+        const biz = await this._getBusiness();
         const services = (biz.services && biz.services.length)
             ? biz.services.join(', ')
             : 'sites, automação com IA, agentes de IA, tráfego pago, SEO, SaaS sob medida';
@@ -125,7 +136,7 @@ MENSAGENS:
 ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
 
         try {
-            const completion = await client.chat.completions.create({
+            const completion = await callWithRetry(() => client.chat.completions.create({
                 model,
                 messages: [
                     { role: 'system', content: 'Você responde só com JSON válido, sem markdown, sem texto extra.' },
@@ -134,7 +145,7 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
                 max_tokens: 200 + candidates.length * 120,
                 temperature: 0.2,
                 reasoning_effort: 'none'
-            });
+            }));
 
             const raw = completion.choices[0].message.content.trim()
                 .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');

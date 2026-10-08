@@ -5,7 +5,6 @@
  * usando o Agente de IA para prospecção
  */
 
-require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const { getClient, getModel } = require('./openaiClient');

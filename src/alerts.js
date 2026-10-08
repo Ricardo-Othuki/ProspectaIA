@@ -5,7 +5,6 @@
  * vendas, para nunca ter duas implementações divergentes do mesmo conceito.
  */
 
-require('dotenv').config();
 const WhatsAppIntegration = require('./whatsappIntegration');
 const TelegramIntegration = require('./telegramIntegration');
 const { SettingsStore } = require('./settingsStore');

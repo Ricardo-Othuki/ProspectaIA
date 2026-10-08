@@ -7,7 +7,6 @@
  * 2. Agendar uma reunião no Google Agenda para conversa via Google Meet
  */
 
-require('dotenv').config();
 const { getClient, getModel } = require('./openaiClient');
 const { getProfile } = require('./businessProfile');
 const WhatsAppIntegration = require('./whatsappIntegration');

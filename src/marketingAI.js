@@ -1,4 +1,3 @@
-require('dotenv').config();
 const { getClient, getModel } = require('./openaiClient');
 const { getBusinessInfoForPrompt, getProfile } = require('./businessProfile');
 

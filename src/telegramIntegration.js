@@ -5,7 +5,6 @@
  * https://api.telegram.org/bot<token>/getUpdates).
  */
 
-require('dotenv').config();
 const axios = require('axios');
 
 class TelegramIntegration {

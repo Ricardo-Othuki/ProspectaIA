@@ -1,5 +1,6 @@
 node_modules
 .env
+.env.*
 *.csv
 output/*
 user-preferences.json
@@ -8,3 +9,12 @@ data/whatsapp-monitoring.json
 data/dashboard-settings.json
 output/simulations/
 .vercel/
+*.log
+logs/
+test_output/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

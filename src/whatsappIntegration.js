@@ -5,7 +5,6 @@
  * Suporta: Evolution API, Twilio, Meta Cloud API, e simulation mode
  */
 
-require('dotenv').config();
 const axios = require('axios');
 
 class WhatsAppIntegration {

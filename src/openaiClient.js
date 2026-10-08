@@ -4,7 +4,6 @@
  * All modules should import from here instead of creating their own instances.
  * Supports Google Gemini (free tier) via OpenAI-compatible endpoint.
  */
-require('dotenv').config();
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 
@@ -71,10 +70,33 @@ function resetClient() {
     initError = null;
 }
 
+/**
+ * Wrapper para chamadas à IA com retry e backoff exponencial.
+ * Usage:
+ *   const result = await callWithRetry(() => client.chat.completions.create(...));
+ */
+async function callWithRetry(fn, { retries = 3, baseDelayMs = 800, maxDelayMs = 8000 } = {}) {
+    let attempt = 0;
+    while (attempt <= retries) {
+        try {
+            return await fn();
+        } catch (error) {
+            attempt += 1;
+            const status = error?.status || error?.code;
+            const retryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+            if (attempt > retries || !retryable) throw error;
+            const delay = Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs);
+            console.warn(`⚠️  Retry ${attempt}/${retries} em ${delay}ms (erro ${status || error.message})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+}
+
 module.exports = {
     getClient,
     getModel,
     isConfigured,
     resetClient,
     DEFAULT_MODEL,
+    callWithRetry,
 };

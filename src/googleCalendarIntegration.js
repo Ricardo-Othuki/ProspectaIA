@@ -5,7 +5,6 @@
  * Cria eventos com link do Google Meet
  */
 
-require('dotenv').config();
 const { google } = require('googleapis');
 
 class GoogleCalendarIntegration {

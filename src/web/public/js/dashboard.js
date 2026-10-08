@@ -30,6 +30,7 @@ class Dashboard {
         
         await this.loadDashboard();
         await this.loadCampaigns();
+        this.loadContactedLeads();
 
         // Auto-refresh da lista de conversas enquanto a seção está aberta
         setInterval(() => {
@@ -573,7 +574,29 @@ class Dashboard {
         if (sectionName === 'leads') this.loadLeadsSection();
         if (sectionName === 'campaigns') this.loadCampaigns();
         if (sectionName === 'conversations') this.loadConversations();
-        if (sectionName === 'lead-radar') this.loadLeadRadar();
+        if (sectionName === 'contacted-leads') this.loadContactedLeads();
+    async loadContactedLeads() {
+        const tableBody = document.getElementById('contactedLeadsTableBody');
+        if (!tableBody) return;
+        
+        try {
+            const conversations = await api.getConversations();
+            // Filtro: contato já iniciou (status !== 'initiated') OU tem mensagens OU humancorontrolled
+            const contacted = conversations.filter(c => c.status !== 'initiated' || c.humanControlled || c.messages?.length > 0);
+            
+            tableBody.innerHTML = contacted.map(c => `
+                <tr class="border-b border-gray-700">
+                    <td class="p-2"><input type="checkbox" value="${c.leadId}" class="lead-checkbox" /></td>
+                    <td class="p-2">${c.leadName || 'Sem nome'}</td>
+                    <td class="p-2">${c.nicheName || '-'}</td>
+                    <td class="p-2">${c.status}</td>
+                    <td class="p-2"><button class="btn btn-sm btn-secondary" onclick="app.selectConversation('${c.leadId}')">Chat</button></td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('Erro ao carregar leads contatados:', error);
+        }
+    }
     }
 
     // ─── Real-Time Updates (SSE) ────────────────────────────
