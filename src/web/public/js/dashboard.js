@@ -134,6 +134,18 @@ class Dashboard {
             });
         });
 
+        const contactedLeadsTable = document.getElementById('contactedLeadsTableBody');
+        if (contactedLeadsTable) {
+            contactedLeadsTable.addEventListener('click', event => {
+                const button = event.target.closest('[data-action="open-contacted-chat"]');
+                if (!button) return;
+                const leadId = button.dataset.leadId;
+                if (!leadId) return;
+                this.showSection('conversations');
+                this.selectConversation(leadId);
+            });
+        }
+
         const campaignSettingsForm = document.getElementById('campaignSettingsForm');
         if (campaignSettingsForm) campaignSettingsForm.addEventListener('submit', event => this.saveSettings(event));
         const profileSettingsForm = document.getElementById('profileSettingsForm');
@@ -577,6 +589,10 @@ class Dashboard {
         if (sectionName === 'contacted-leads') this.loadContactedLeads();
     }
 
+    escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
+    }
+
     async loadContactedLeads() {
         const tableBody = document.getElementById('contactedLeadsTableBody');
         if (!tableBody) return;
@@ -592,7 +608,7 @@ class Dashboard {
                     <td class="p-2">${c.leadName || 'Sem nome'}</td>
                     <td class="p-2">${c.nicheName || '-'}</td>
                     <td class="p-2">${c.status}</td>
-                    <td class="p-2"><button class="btn btn-sm btn-secondary" onclick="app.selectConversation('${c.leadId}')">Chat</button></td>
+                    <td class="p-2"><button class="btn btn-sm btn-secondary" data-lead-id="${this.escapeHtml(c.leadId)}" data-action="open-contacted-chat">Chat</button></td>
                 </tr>
             `).join('');
         } catch (error) {
