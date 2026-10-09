@@ -16,6 +16,7 @@ class Dashboard {
         this.currentRadarLeads = [];
         this.radarSettings = { autoScanEnabled: true, activeNicheId: '', niches: [] };
         this.currentRadarNicheId = '';
+        this.contactedLeads = [];
 
         this.init();
     }
