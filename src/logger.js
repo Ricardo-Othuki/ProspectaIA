@@ -1,31 +1,30 @@
 const winston = require('winston');
-require('winston-daily-rotate-file');
 const path = require('path');
 
-const logDir = path.join(__dirname, '../logs');
+const transports = [
+    new winston.transports.Console({
+        format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
+        )
+    })
+];
 
-const transport = new winston.transports.DailyRotateFile({
-    filename: path.join(logDir, 'application-%DATE%.log'),
-    datePattern: 'YYYY-MM-DD',
-    maxSize: '20m',
-    maxFiles: '14d'
-});
+if (!process.env.VERCEL) {
+    require('winston-daily-rotate-file');
+    transports.push(new winston.transports.DailyRotateFile({
+        filename: path.join(__dirname, '../logs/application-%DATE%.log'),
+        datePattern: 'YYYY-MM-DD',
+        maxSize: '20m',
+        maxFiles: '14d'
+    }));
+}
 
-const logger = winston.createLogger({
+module.exports = winston.createLogger({
     level: 'info',
     format: winston.format.combine(
         winston.format.timestamp(),
         winston.format.json()
     ),
-    transports: [
-        new winston.transports.Console({
-            format: winston.format.combine(
-                winston.format.colorize(),
-                winston.format.simple()
-            )
-        }),
-        transport
-    ]
+    transports
 });
-
-module.exports = logger;
