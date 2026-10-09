@@ -627,6 +627,25 @@ class Dashboard {
         return Number.isNaN(date.getTime()) ? 'Sem atividade' : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
     }
 
+    applyConfiguredNichesToConversations(settings = {}) {
+        const niches = settings.radar?.niches || [];
+        const byId = new Map(niches.map(niche => [niche.id, niche.name]));
+        const byName = new Map(niches.map(niche => [String(niche.name || '').toLowerCase(), niche.name]));
+        this.contactedLeads.forEach(conversation => {
+            if (conversation.nicheName) return;
+            const pitchText = JSON.stringify(conversation.pitch || {}).toLowerCase();
+            const match = niches.find(niche => pitchText.includes(String(niche.name || '').toLowerCase()));
+            if (match) {
+                conversation.nicheId = match.id;
+                conversation.nicheName = match.name;
+            } else if (conversation.nicheId && byId.has(conversation.nicheId)) {
+                conversation.nicheName = byId.get(conversation.nicheId);
+            } else if (conversation.nicheName && byName.has(conversation.nicheName.toLowerCase())) {
+                conversation.nicheName = byName.get(conversation.nicheName.toLowerCase());
+            }
+        });
+    }
+
     populateContactedLeadFilters(settings = {}) {
         const configuredNiches = (settings.radar?.niches || []).map(niche => ({ id: niche.id, name: niche.name })).filter(niche => niche.id && niche.name);
         const contactNiches = this.contactedLeads.map(lead => ({ id: lead.nicheId || lead.nicheName, name: lead.nicheName })).filter(niche => niche.id && niche.name);
@@ -680,7 +699,9 @@ class Dashboard {
             const conversations = await api.getConversations();
             this.contactedLeads = conversations.filter(conversation => conversation.status !== 'initiated' || conversation.humanControlled || conversation.messages?.length > 0);
             const settingsResponse = await api.getSettings().catch(() => ({}));
-            this.populateContactedLeadFilters(settingsResponse.settings || settingsResponse || {});
+            const settings = settingsResponse.settings || settingsResponse || {};
+            this.applyConfiguredNichesToConversations(settings);
+            this.populateContactedLeadFilters(settings);
             this.renderContactedLeads();
         } catch (error) {
             tableBody.innerHTML = '<tr><td colspan="6" class="empty-state">Não foi possível carregar os leads contatados.</td></tr>';

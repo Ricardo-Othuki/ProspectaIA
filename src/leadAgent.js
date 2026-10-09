@@ -101,7 +101,7 @@ class LeadAgent {
      * `testTarget` (opcional) redireciona o envio (quando aprovado) para um
      * destino de teste (ex: grupo do WhatsApp) em vez do telefone do lead.
      */
-    async startOutreach(lead, campaignStyle = 'balanced', { pitch, testTarget, origin, radarLeadId } = {}) {
+    async startOutreach(lead, campaignStyle = 'balanced', { pitch, testTarget, origin, radarLeadId, nicheId, nicheName } = {}) {
         console.log(`\n🤖 Preparando contato com: ${lead.name}`);
 
         const profile = getProfile();
@@ -128,6 +128,8 @@ class LeadAgent {
             testTarget: testTarget || null,
             origin: origin || 'campaign',
             radarLeadId: radarLeadId || null,
+            nicheId: nicheId || null,
+            nicheName: nicheName || null,
             currentStep: 1,
             maxSteps: 5,
             startTime: new Date(),
@@ -325,7 +327,9 @@ class LeadAgent {
             pitch,
             testTarget,
             origin: 'radar',
-            radarLeadId: radarLead.id
+            radarLeadId: radarLead.id,
+            nicheId: radarLead.niche_id || null,
+            nicheName: radarLead.niche_name || null
         });
     }
 
