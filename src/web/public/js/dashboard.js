@@ -627,14 +627,16 @@ class Dashboard {
         return Number.isNaN(date.getTime()) ? 'Sem atividade' : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
     }
 
-    populateContactedLeadFilters() {
-        const niches = [...new Set(this.contactedLeads.map(lead => lead.nicheName).filter(Boolean))].sort();
+    populateContactedLeadFilters(settings = {}) {
+        const configuredNiches = (settings.radar?.niches || []).map(niche => ({ id: niche.id, name: niche.name })).filter(niche => niche.id && niche.name);
+        const contactNiches = this.contactedLeads.map(lead => ({ id: lead.nicheId || lead.nicheName, name: lead.nicheName })).filter(niche => niche.id && niche.name);
+        const niches = [...new Map([...configuredNiches, ...contactNiches].map(niche => [niche.id, niche])).values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
         const statuses = [...new Set(this.contactedLeads.map(lead => lead.status).filter(Boolean))].sort();
         const nicheFilter = document.getElementById('contactedLeadsNicheFilter');
         const statusFilter = document.getElementById('contactedLeadsStatusFilter');
         const selectedNiche = nicheFilter?.value || '';
         const selectedStatus = statusFilter?.value || '';
-        if (nicheFilter) nicheFilter.innerHTML = `<option value="">Todos os nichos</option>${niches.map(niche => `<option value="${this.escapeHtml(niche)}">${this.escapeHtml(niche)}</option>`).join('')}`;
+        if (nicheFilter) nicheFilter.innerHTML = `<option value="">Todos os nichos</option>${niches.map(niche => `<option value="${this.escapeHtml(niche.id)}">${this.escapeHtml(niche.name)}</option>`).join('')}`;
         if (statusFilter) statusFilter.innerHTML = `<option value="">Todos os status</option>${statuses.map(status => `<option value="${this.escapeHtml(status)}">${this.contactedLeadStatus(status)}</option>`).join('')}`;
         if (nicheFilter) nicheFilter.value = selectedNiche;
         if (statusFilter) statusFilter.value = selectedStatus;
@@ -648,7 +650,7 @@ class Dashboard {
         const status = document.getElementById('contactedLeadsStatusFilter')?.value || '';
         const visible = (this.contactedLeads || []).filter(lead => {
             const searchable = `${lead.leadName || ''} ${lead.leadPhone || ''} ${lead.nicheName || ''}`.toLowerCase();
-            return (!query || searchable.includes(query)) && (!niche || lead.nicheName === niche) && (!status || lead.status === status);
+            return (!query || searchable.includes(query)) && (!niche || lead.nicheId === niche || lead.nicheName === niche) && (!status || lead.status === status);
         });
         const count = document.getElementById('contactedLeadsCount');
         if (count) count.textContent = `${visible.length} ${visible.length === 1 ? 'lead' : 'leads'}`;
@@ -677,7 +679,8 @@ class Dashboard {
         try {
             const conversations = await api.getConversations();
             this.contactedLeads = conversations.filter(conversation => conversation.status !== 'initiated' || conversation.humanControlled || conversation.messages?.length > 0);
-            this.populateContactedLeadFilters();
+            const settings = await api.getSettings().catch(() => ({}));
+            this.populateContactedLeadFilters(settings);
             this.renderContactedLeads();
         } catch (error) {
             tableBody.innerHTML = '<tr><td colspan="6" class="empty-state">Não foi possível carregar os leads contatados.</td></tr>';
