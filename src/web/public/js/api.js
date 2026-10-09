@@ -72,8 +72,14 @@ class API {
         return result.conversations || [];
     }
     async getConversation(id) {
-        const result = await this.request(`/agent/conversations/${id}`);
+        const result = await this.request(`/agent/conversations/${encodeURIComponent(id)}`);
         return result.conversation;
+    }
+    async previewRemarketing(leadIds, message) {
+        return this.request('/agent/remarketing/preview', {
+            method: 'POST',
+            body: JSON.stringify({ leadIds, message })
+        });
     }
     async takeoverConversation(id) {
         return this.request('/agent/takeover', {

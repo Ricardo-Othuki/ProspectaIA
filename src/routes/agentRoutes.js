@@ -7,6 +7,7 @@ const leadRadar = require('../leadRadar');
 const leadRadarStore = require('../leadRadarStore');
 const { correlations: alertCorrelations, getAlertSettings } = require('../alerts');
 const remoteOperator = require('../remoteOperator');
+const conversationStore = require('../conversationStore');
 
 const router = express.Router();
 const agent = new LeadAgent();
@@ -351,6 +352,25 @@ router.post('/manual-message', checkConfig, async (req, res) => {
     } catch (error) {
         console.error('Error sending manual message:', error.message);
         res.status(400).json({ error: error.message });
+    }
+});
+
+router.post('/remarketing/preview', checkConfig, async (req, res) => {
+    try {
+        const leadIds = Array.isArray(req.body?.leadIds) ? req.body.leadIds : [];
+        const template = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+        if (!leadIds.length || !template) return res.status(400).json({ error: 'Informe leadIds e mensagem.' });
+        const conversations = await Promise.all(leadIds.map(id => conversationStore.getConversation(id)));
+        const preview = conversations.filter(Boolean).map(conversation => ({
+            leadId: conversation.leadId,
+            leadName: conversation.leadName,
+            leadPhone: conversation.leadPhone,
+            message: template.replace(/\{\{\s*leadName\s*\}\}/gi, conversation.leadName || 'Olá'),
+            optedOut: conversation.optedOut === true
+        }));
+        res.json({ success: true, simulated: true, preview });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 

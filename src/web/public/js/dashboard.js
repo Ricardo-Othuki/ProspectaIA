@@ -134,6 +134,9 @@ class Dashboard {
             });
         });
 
+        const batchRemarketingButton = document.getElementById('batchRemarketingBtn');
+        if (batchRemarketingButton) batchRemarketingButton.addEventListener('click', () => this.previewRemarketing());
+
         const contactedLeadsTable = document.getElementById('contactedLeadsTableBody');
         if (contactedLeadsTable) {
             contactedLeadsTable.addEventListener('click', event => {
@@ -613,6 +616,22 @@ class Dashboard {
             `).join('');
         } catch (error) {
             console.error('Erro ao carregar leads contatados:', error);
+        }
+    }
+
+    async previewRemarketing() {
+        const message = document.getElementById('remarketingMessage')?.value.trim();
+        const preview = document.getElementById('remarketingPreview');
+        const leadIds = Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(input => input.value);
+        if (!message || !leadIds.length) {
+            this.showNotification('Selecione ao menos um lead e escreva a mensagem.', 'warning');
+            return;
+        }
+        try {
+            const result = await api.previewRemarketing(leadIds, message);
+            preview.innerHTML = `<p><strong>Simulação: nenhuma mensagem foi enviada.</strong></p>${result.preview.map(item => `<div class="card p-3 mt-2"><strong>${this.escapeHtml(item.leadName)}</strong><p>${this.escapeHtml(item.message)}</p></div>`).join('')}`;
+        } catch (error) {
+            this.showNotification(error.message || 'Não foi possível gerar a simulação.', 'error');
         }
     }
 

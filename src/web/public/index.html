@@ -845,7 +845,9 @@
             <div class="card p-6">
                 <div class="flex gap-4 mb-4">
                     <input type="text" id="contactedLeadsSearch" placeholder="Filtrar por nome ou nicho..." class="input" />
-                    <button class="btn btn-primary" id="batchRemarketingBtn">Remarketing em Lote</button>
+                    <button class="btn btn-primary" id="batchRemarketingBtn" type="button">Simular Remarketing</button>
+                    <textarea id="remarketingMessage" class="input" rows="2" placeholder="Olá, {{leadName}}! Como podemos ajudar?"></textarea>
+                    <div id="remarketingPreview" class="mt-3"></div>
                 </div>
                 <table class="w-full text-left">
                     <thead><tr><th><input type="checkbox" id="selectAllLeads" /></th><th>Nome</th><th>Último Nicho</th><th>Status</th><th>Ações</th></tr></thead>
