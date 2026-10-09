@@ -679,8 +679,8 @@ class Dashboard {
         try {
             const conversations = await api.getConversations();
             this.contactedLeads = conversations.filter(conversation => conversation.status !== 'initiated' || conversation.humanControlled || conversation.messages?.length > 0);
-            const settings = await api.getSettings().catch(() => ({}));
-            this.populateContactedLeadFilters(settings);
+            const settingsResponse = await api.getSettings().catch(() => ({}));
+            this.populateContactedLeadFilters(settingsResponse.settings || settingsResponse || {});
             this.renderContactedLeads();
         } catch (error) {
             tableBody.innerHTML = '<tr><td colspan="6" class="empty-state">Não foi possível carregar os leads contatados.</td></tr>';
