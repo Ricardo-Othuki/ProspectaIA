@@ -840,21 +840,37 @@
           </div>
         </div>
         <!-- Contacted Leads Section -->
-         <div class="section" id="section-contacted-leads">
-            <h2 class="section-title">Leads Contatados</h2>
-            <div class="card p-6">
-                <div class="flex gap-4 mb-4">
-                    <input type="text" id="contactedLeadsSearch" placeholder="Filtrar por nome ou nicho..." class="input" />
-                    <button class="btn btn-primary" id="batchRemarketingBtn" type="button">Simular Remarketing</button>
-                    <textarea id="remarketingMessage" class="input" rows="2" placeholder="Olá, {{leadName}}! Como podemos ajudar?"></textarea>
-                    <div id="remarketingPreview" class="mt-3"></div>
-                </div>
-                <table class="w-full text-left">
-                    <thead><tr><th><input type="checkbox" id="selectAllLeads" /></th><th>Nome</th><th>Último Nicho</th><th>Status</th><th>Ações</th></tr></thead>
-                    <tbody id="contactedLeadsTableBody"></tbody>
-                </table>
-            </div>
-         </div>
+          <div class="section" id="section-contacted-leads">
+             <div class="section-header">
+               <div>
+                 <h2 class="section-title">Leads Contatados</h2>
+                 <p class="section-subtitle">Acompanhe os contatos por nicho, retome conversas e simule campanhas de remarketing.</p>
+               </div>
+               <span class="status-pill" id="contactedLeadsCount">0 leads</span>
+             </div>
+             <div class="card contacted-leads-toolbar">
+                 <div class="contacted-leads-filters">
+                     <input type="search" id="contactedLeadsSearch" placeholder="Buscar por nome, telefone ou nicho" class="input" />
+                     <select id="contactedLeadsNicheFilter" class="input"><option value="">Todos os nichos</option></select>
+                     <select id="contactedLeadsStatusFilter" class="input"><option value="">Todos os status</option></select>
+                 </div>
+                 <div class="contacted-leads-selection" id="contactedLeadsSelection">Nenhum lead selecionado</div>
+             </div>
+             <div class="card contacted-leads-table-card">
+                 <div class="table-wrap">
+                   <table class="contacted-leads-table">
+                     <thead><tr><th><input type="checkbox" id="selectAllLeads" aria-label="Selecionar todos os leads" /></th><th>Lead</th><th>Nicho</th><th>Status</th><th>Última atividade</th><th>Ações</th></tr></thead>
+                     <tbody id="contactedLeadsTableBody"><tr><td colspan="6" class="empty-state">Carregando leads contatados…</td></tr></tbody>
+                   </table>
+                 </div>
+             </div>
+             <div class="card contacted-leads-remarketing">
+                 <div><h3>Simular remarketing</h3><p>Gere uma prévia personalizada. Nenhuma mensagem será enviada.</p></div>
+                 <textarea id="remarketingMessage" class="input" rows="3" placeholder="Olá, {{leadName}}! Como podemos ajudar?"></textarea>
+                 <button class="btn btn-primary" id="batchRemarketingBtn" type="button">Gerar prévia segura</button>
+                 <div id="remarketingPreview"></div>
+             </div>
+          </div>
       </main>
     </div>
 

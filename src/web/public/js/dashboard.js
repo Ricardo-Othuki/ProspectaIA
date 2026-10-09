@@ -136,6 +136,13 @@ class Dashboard {
 
         const batchRemarketingButton = document.getElementById('batchRemarketingBtn');
         if (batchRemarketingButton) batchRemarketingButton.addEventListener('click', () => this.previewRemarketing());
+        document.getElementById('contactedLeadsSearch')?.addEventListener('input', () => this.renderContactedLeads());
+        document.getElementById('contactedLeadsNicheFilter')?.addEventListener('change', () => this.renderContactedLeads());
+        document.getElementById('contactedLeadsStatusFilter')?.addEventListener('change', () => this.renderContactedLeads());
+        document.getElementById('selectAllLeads')?.addEventListener('change', event => {
+            document.querySelectorAll('.lead-checkbox').forEach(input => { input.checked = event.target.checked; });
+            this.updateContactedLeadsSelection();
+        });
 
         const contactedLeadsTable = document.getElementById('contactedLeadsTableBody');
         if (contactedLeadsTable) {
@@ -146,6 +153,9 @@ class Dashboard {
                 if (!leadId) return;
                 this.showSection('conversations');
                 this.selectConversation(leadId);
+            });
+            contactedLeadsTable.addEventListener('change', event => {
+                if (event.target.matches('.lead-checkbox')) this.updateContactedLeadsSelection();
             });
         }
 
@@ -596,25 +606,81 @@ class Dashboard {
         return String(value || '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
     }
 
+    contactedLeadStatus(status) {
+        const labels = {
+            initiated: 'Iniciado',
+            contacted: 'Contatado',
+            in_progress: 'Em andamento',
+            human_takeover: 'Atendimento humano',
+            scheduling: 'Em agendamento',
+            qualified: 'Qualificado',
+            completed: 'Concluído',
+            closed: 'Encerrado',
+            awaiting_approval: 'Aguardando aprovação'
+        };
+        return labels[status] || 'Sem status';
+    }
+
+    formatContactedLeadDate(value) {
+        if (!value) return 'Sem atividade';
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? 'Sem atividade' : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    populateContactedLeadFilters() {
+        const niches = [...new Set(this.contactedLeads.map(lead => lead.nicheName).filter(Boolean))].sort();
+        const statuses = [...new Set(this.contactedLeads.map(lead => lead.status).filter(Boolean))].sort();
+        const nicheFilter = document.getElementById('contactedLeadsNicheFilter');
+        const statusFilter = document.getElementById('contactedLeadsStatusFilter');
+        const selectedNiche = nicheFilter?.value || '';
+        const selectedStatus = statusFilter?.value || '';
+        if (nicheFilter) nicheFilter.innerHTML = `<option value="">Todos os nichos</option>${niches.map(niche => `<option value="${this.escapeHtml(niche)}">${this.escapeHtml(niche)}</option>`).join('')}`;
+        if (statusFilter) statusFilter.innerHTML = `<option value="">Todos os status</option>${statuses.map(status => `<option value="${this.escapeHtml(status)}">${this.contactedLeadStatus(status)}</option>`).join('')}`;
+        if (nicheFilter) nicheFilter.value = selectedNiche;
+        if (statusFilter) statusFilter.value = selectedStatus;
+    }
+
+    renderContactedLeads() {
+        const tableBody = document.getElementById('contactedLeadsTableBody');
+        if (!tableBody) return;
+        const query = document.getElementById('contactedLeadsSearch')?.value.trim().toLowerCase() || '';
+        const niche = document.getElementById('contactedLeadsNicheFilter')?.value || '';
+        const status = document.getElementById('contactedLeadsStatusFilter')?.value || '';
+        const visible = (this.contactedLeads || []).filter(lead => {
+            const searchable = `${lead.leadName || ''} ${lead.leadPhone || ''} ${lead.nicheName || ''}`.toLowerCase();
+            return (!query || searchable.includes(query)) && (!niche || lead.nicheName === niche) && (!status || lead.status === status);
+        });
+        const count = document.getElementById('contactedLeadsCount');
+        if (count) count.textContent = `${visible.length} ${visible.length === 1 ? 'lead' : 'leads'}`;
+        tableBody.innerHTML = visible.length ? visible.map(lead => `
+            <tr>
+                <td><input type="checkbox" value="${this.escapeHtml(lead.leadId)}" class="lead-checkbox" aria-label="Selecionar ${this.escapeHtml(lead.leadName)}" /></td>
+                <td><strong>${this.escapeHtml(lead.leadName || 'Sem nome')}</strong><small>${this.escapeHtml(lead.leadPhone || 'Sem telefone')}</small></td>
+                <td>${this.escapeHtml(lead.nicheName || 'Não informado')}</td>
+                <td><span class="lead-status lead-status-${this.escapeHtml(lead.status || 'unknown')}">${this.contactedLeadStatus(lead.status)}</span></td>
+                <td>${this.formatContactedLeadDate(lead.lastActivity)}</td>
+                <td><button class="btn btn-secondary" data-lead-id="${this.escapeHtml(lead.leadId)}" data-action="open-contacted-chat">Abrir chat</button></td>
+            </tr>
+        `).join('') : '<tr><td colspan="6" class="empty-state">Nenhum lead corresponde aos filtros selecionados.</td></tr>';
+        this.updateContactedLeadsSelection();
+    }
+
+    updateContactedLeadsSelection() {
+        const selected = document.querySelectorAll('.lead-checkbox:checked').length;
+        const label = document.getElementById('contactedLeadsSelection');
+        if (label) label.textContent = selected ? `${selected} ${selected === 1 ? 'lead selecionado' : 'leads selecionados'} para simulação` : 'Nenhum lead selecionado';
+    }
+
     async loadContactedLeads() {
         const tableBody = document.getElementById('contactedLeadsTableBody');
         if (!tableBody) return;
-        
         try {
             const conversations = await api.getConversations();
-            // Filtro: contato já iniciou (status !== 'initiated') OU tem mensagens OU humancorontrolled
-            const contacted = conversations.filter(c => c.status !== 'initiated' || c.humanControlled || c.messages?.length > 0);
-            
-            tableBody.innerHTML = contacted.map(c => `
-                <tr class="border-b border-gray-700">
-                    <td class="p-2"><input type="checkbox" value="${c.leadId}" class="lead-checkbox" /></td>
-                    <td class="p-2">${c.leadName || 'Sem nome'}</td>
-                    <td class="p-2">${c.nicheName || '-'}</td>
-                    <td class="p-2">${c.status}</td>
-                    <td class="p-2"><button class="btn btn-sm btn-secondary" data-lead-id="${this.escapeHtml(c.leadId)}" data-action="open-contacted-chat">Chat</button></td>
-                </tr>
-            `).join('');
+            this.contactedLeads = conversations.filter(conversation => conversation.status !== 'initiated' || conversation.humanControlled || conversation.messages?.length > 0);
+            this.populateContactedLeadFilters();
+            this.renderContactedLeads();
         } catch (error) {
+            tableBody.innerHTML = '<tr><td colspan="6" class="empty-state">Não foi possível carregar os leads contatados.</td></tr>';
             console.error('Erro ao carregar leads contatados:', error);
         }
     }
