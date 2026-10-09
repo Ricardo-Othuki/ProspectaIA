@@ -698,11 +698,15 @@ class Dashboard {
         try {
             const conversations = await api.getConversations();
             this.contactedLeads = conversations.filter(conversation => conversation.status !== 'initiated' || conversation.humanControlled || conversation.messages?.length > 0);
-            const settingsResponse = await api.getSettings().catch(() => ({}));
-            const settings = settingsResponse.settings || settingsResponse || {};
-            this.applyConfiguredNichesToConversations(settings);
-            this.populateContactedLeadFilters(settings);
             this.renderContactedLeads();
+
+            const settingsResponse = await api.getSettings().catch(() => null);
+            if (settingsResponse) {
+                const settings = settingsResponse.settings || settingsResponse;
+                this.applyConfiguredNichesToConversations(settings);
+                this.populateContactedLeadFilters(settings);
+                this.renderContactedLeads();
+            }
         } catch (error) {
             tableBody.innerHTML = '<tr><td colspan="6" class="empty-state">Não foi possível carregar os leads contatados.</td></tr>';
             console.error('Erro ao carregar leads contatados:', error);
