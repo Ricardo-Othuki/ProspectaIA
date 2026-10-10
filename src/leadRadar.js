@@ -219,6 +219,7 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
         if (fromMe || !message) return null;
         if (await this.groupsStore.isExcluded(groupId)) { console.log('   → grupo excluído da varredura'); return null; }
 
+        await this._getBusiness();
         const niches = await this.getRadarNichesForScan();
         const results = [];
         for (const niche of niches) {
@@ -251,6 +252,7 @@ ${JSON.stringify(candidates.map((c, i) => ({ index: i, text: c.text })))}`;
      */
     async scanGroups({ sinceDays = 7, maxPagesPerGroup = 3 } = {}) {
         const cutoff = Date.now() - Math.min(sinceDays, 7) * 24 * 60 * 60 * 1000;
+        await this._getBusiness();
         const groups = await this.whatsapp.getGroups();
         const summary = { groupsScanned: 0, groupsSkipped: 0, candidates: 0, leadsFound: 0, nichesScanned: 0 };
         const niches = await this.getRadarNichesForScan();

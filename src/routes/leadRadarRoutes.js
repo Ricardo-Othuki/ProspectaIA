@@ -111,6 +111,48 @@ router.all('/cron/scan', async (req, res) => {
     }
 });
 
+router.get('/diagnostic', async (req, res) => {
+    try {
+        await leadRadar._getBusiness();
+        const niches = await leadRadar.getRadarNichesForScan();
+        let groups = [];
+        let groupsError = null;
+        try { groups = await leadRadar.whatsapp.getGroups(); } catch (error) { groupsError = error.message; }
+        const excluded = new Set(await leadRadar.groupsStore.listExcluded().catch(() => []));
+        const sinceDays = Math.min(Number(req.query?.sinceDays) || 7, 7);
+        const cutoff = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
+        const byNiche = await Promise.all(niches.map(async niche => {
+            const sample = await leadRadar.whatsapp.findMessages(groups[0]?.id || '', { page: 1 }).catch(() => ({ records: [] }));
+            const keywords = leadRadar.buildKeywordFilter(niche);
+            const examples = (sample.records || []).slice(0, 3).map(record => {
+                const text = (record.message?.conversation || record.message?.extendedTextMessage?.text || '').slice(0, 120);
+                return { text, prefilter: text ? leadRadar.matchesPrefilter(text, niche) : false };
+            });
+            const cursorGroupId = niche.id === 'default' ? (groups[0]?.id || 'default') : `${groups[0]?.id || 'default'}::${niche.id}`;
+            const cursor = await leadRadarStore.getCursor(cursorGroupId).catch(() => null);
+            return {
+                nicheId: niche.id,
+                nicheName: niche.name,
+                scanEnabled: niche.scanEnabled !== false,
+                keywords: keywords.slice(0, 8),
+                cursorLastMessage: cursor?.last_message_timestamp || null,
+                effectiveCutoff: new Date(Math.max(cutoff, cursor?.last_message_timestamp ? new Date(cursor.last_message_timestamp).getTime() : 0)).toISOString(),
+                examples
+            };
+        }));
+        res.json({
+            success: true,
+            businessCache: leadRadar._businessCache,
+            groups: { total: groups.length, error: groupsError, sample: groups.slice(0, 3).map(g => ({ id: g.id, name: g.subject, size: g.size, excluded: excluded.has(g.id) })) },
+            nichesScanned: niches.length,
+            byNiche,
+            env: { hasOpenAI: Boolean(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY), supabaseConfigured: leadRadarStore.isConfigured(), openaiBaseUrl: process.env.OPENAI_BASE_URL || null }
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 router.get('/leads', checkSupabase, async (req, res) => {
     try {
         const { since, priority, groupId, status, nicheId } = req.query;
